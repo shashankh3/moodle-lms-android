@@ -383,7 +383,7 @@ High-level adapter wrapping all Moodle web service functions:
 Supports 3 languages using i18next:
 
 | Language | Code | File |
-|:---|:---|:---|
+| :--- | :--- | :--- |
 | English | en | src/i18n/locales/en.json |
 | Hindi | hi | src/i18n/locales/hi.json |
 | Marathi | mr | src/i18n/locales/mr.json |
@@ -391,6 +391,7 @@ Supports 3 languages using i18next:
 Language switching is available on the LoginScreen (before login) and SettingsScreen (after login), persisted to AsyncStorage.
 
 ### Devanagari Typography Notes
+
 - Use `lineHeight` instead of `letterSpacing` to prevent conjunct character clipping
 - Use `minHeight` and `paddingVertical` to accommodate Matra characters
 
@@ -401,6 +402,7 @@ Language switching is available on the LoginScreen (before login) and SettingsSc
 Managed by `ThemeContext.js`. Supports Light, Dark, and System Auto modes.
 
 Sample theme tokens:
+
 ```js
 light: { background: '#F0F4F8', card: '#FFFFFF', primary: '#00AEEF', text: '#0F172A' }
 dark:  { background: '#0A1628', card: '#1E293B', primary: '#38BDF8', text: '#F1F5F9' }
@@ -428,6 +430,7 @@ Role detection: `AuthContext` exposes `isStudent` and `isTeacher` flags for cond
 ## 11. SCORM Support
 
 Full SCORM 1.2 and 2004 compliance via `ScormPlayerScreen.js` and `CourseContentViewerScreen.js`:
+
 1. SCORM package URL loaded into a WebView
 2. JavaScript bridge injects custom `API` (SCORM 1.2) and `API_1484_11` (SCORM 2004) objects into the WebView window
 3. SCORM content calls LMSInitialize, LMSSetValue, LMSGetValue, LMSFinish (or 2004 equivalents)
