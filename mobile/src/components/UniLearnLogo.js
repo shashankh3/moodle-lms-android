@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, Platform, Linking } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { navigationRef } from '../navigation/navigationRef';
 
@@ -27,10 +27,14 @@ export default function UniLearnLogo({ size = 36, showMaharashtra = true, onOpen
       }
       if (navigationRef && navigationRef.isReady && navigationRef.isReady()) {
         navigationRef.navigate('MaharashtraDashboard');
+        return;
       }
     } catch (e) {
       console.warn('In-app navigation to MaharashtraDashboard note:', e);
     }
+
+    // Direct redirect fallback
+    Linking.openURL('https://mh.unilearn.org.in/dashboard/').catch(() => {});
   };
 
   const isPill = darkBg || pill;

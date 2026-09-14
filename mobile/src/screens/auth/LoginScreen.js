@@ -45,7 +45,7 @@ import {
   ShieldCheck,
 } from 'lucide-react-native';
 
-export default function LoginScreen() {
+export default function LoginScreen({ navigation }) {
   const { theme } = useTheme();
   const { loginWithMoodle, loginWithToken } = useAuth();
   const { t, i18n } = useTranslation();
@@ -255,6 +255,8 @@ export default function LoginScreen() {
               <UniLearnLogo
                 size={38}
                 showMaharashtra={true}
+                navigation={navigation}
+                onOpenDashboard={() => openInAppBrowser('https://mh.unilearn.org.in/dashboard/', 'Maharashtra Dashboard')}
               />
             </View>
 
@@ -606,6 +608,18 @@ export default function LoginScreen() {
               <View style={styles.browserHeaderRight}>
                 <TouchableOpacity
                   style={styles.browserBtn}
+                  onPress={() => {
+                    if (browserModal.url) {
+                      Linking.openURL(browserModal.url).catch(() => {});
+                    }
+                  }}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <ExternalLink size={18} color="#FFFFFF" />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.browserBtn}
                   onPress={() => webViewRef.current?.reload()}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
@@ -628,6 +642,9 @@ export default function LoginScreen() {
                 <WebView
                   ref={webViewRef}
                   source={{ uri: browserModal.url }}
+                  javaScriptEnabled={true}
+                  domStorageEnabled={true}
+                  startInLoadingState={true}
                   onNavigationStateChange={(navState) => setCanGoBack(navState.canGoBack)}
                   onShouldStartLoadWithRequest={(request) => {
                     if (request.url.startsWith('whatsapp://') || request.url.startsWith('mailto:') || request.url.startsWith('tel:')) {
