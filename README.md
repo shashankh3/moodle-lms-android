@@ -53,7 +53,7 @@ Rather than relying on clunky mobile web views or third-party wrappers, this app
 ## 🚀 Key Features
 
 ### 📱 Pure Native Experience
-- **Zero Browser Redirection**: All user journeys (course content, quizzes, lesson navigation, certificate downloads) take place directly inside native screens.
+- **Native In-App Learning Journeys**: Core learning workflows (course content, quizzes, lesson navigation, certificate downloads) take place directly inside native screens (with a secure in-app auth session dedicated for optional SSO).
 - **Micro-Animations & Smooth Feedback**: Integrated with `expo-haptics`, `lucide-react-native`, and `@shopify/flash-list` for buttery 60 FPS scrolling even on budget Android devices.
 
 ### 🌐 Trilingual Vernacular Support
@@ -73,7 +73,7 @@ Rather than relying on clunky mobile web views or third-party wrappers, this app
 
 ### 🎓 Comprehensive Learning Suite
 - **Interactive SCORM & Lesson Players**: Native WebView sandboxing with auto-injected SCORM JavaScript API bridges.
-- **Native Quiz Engine**: Full attempt engine handling Multiple Choice, True/False, Short Answer, and Essay questions.
+- **Native Quiz Engine**: Full attempt engine handling Multiple Choice, True/False, and Short Answer questions.
 - **Assignment Submissions**: Multi-file attachment uploads directly to Moodle draft file areas via multipart REST endpoints.
 - **Digital Certificates & Badges**: Open Badges viewing and one-tap PDF certificate generation, viewing, and WhatsApp/email sharing via `expo-print` and `expo-sharing`.
 - **Gradebook & Analytics**: Interactive performance trends and course completion visual charts with `react-native-chart-kit` and `react-native-svg`.
@@ -88,8 +88,8 @@ Accessibility is a first-class citizen in this application:
 |:---|:---|:---|
 | **Dyslexia Mode** | Converts application typography to weighted OpenDyslexic | `src/utils/dyslexiaPatcher.js` intercepts native Text renders |
 | **Devanagari Vernacular** | Native rendering for Marathi & Hindi scripts | Font assets loaded via `expo-font` (`Mukta`, `Baloo2`, `Kalam`) |
-| **Font Scaling** | Fluid font resizing from 80% to 150% without layout breakage | `AccessibilityToolbar.js` + dynamic layout scaling tokens |
-| **High Contrast** | Strict WCAG AAA compliance contrast mode | Tailored color matrix in `ThemeContext.js` |
+| **Font Scaling** | Fluid font resizing from 85% to 145% without layout breakage | `AccessibilityToolbar.js` + dynamic layout scaling tokens |
+| **High Contrast** | High-contrast accessibility mode inspired by WCAG contrast guidelines | Tailored color matrix in `ThemeContext.js` |
 | **Haptic Confirmations**| Physical feedback on quiz answers, downloads, and buttons | Integrated via `expo-haptics` |
 
 ---
@@ -131,7 +131,7 @@ The monolithic API layer was refactored into domain-focused adapter modules loca
 src/screens/
 ├── analytics/          # Course progress and performance radar charts
 ├── assignments/        # Assignment overview, file submitter, grader notes
-├── auth/               # Login screen, Moodle token validator, SSO browser handler
+├── auth/               # LoginScreen.js (credential login, token validation, SSO auth session)
 ├── badges/             # State-issued badge wallet and achievements
 ├── calendar/           # Monthly agenda, due dates, test deadlines
 ├── certificates/       # PDF certificate renderer, print & share engine
@@ -163,7 +163,7 @@ src/screens/
 | **Charts & Graphs** | react-native-chart-kit | `^7.0.2` | Dashboard progress analytics |
 | **PDF & Sharing** | expo-print & expo-sharing | `~57.0.x` | Certificate generation & export |
 | **Web Container** | react-native-webview | `^13.16.1` | Sandboxed SCORM 1.2 / 2004 engine |
-| **Internationalization** | i18next & react-i18next | `^26.4.0` | Trilingual translation engine |
+| **Internationalization** | i18next & react-i18next | `^26.4.0` / `^17.0.12` | Trilingual translation engine |
 
 ---
 

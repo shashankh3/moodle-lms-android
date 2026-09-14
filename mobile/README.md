@@ -380,7 +380,7 @@ light: { background: '#F0F4F8', card: '#FFFFFF', primary: '#00AEEF', text: '#0F1
 dark:  { background: '#0A1628', card: '#1E293B', primary: '#38BDF8', text: '#F1F5F9' }
 ```
 
-`ThemeContext` also exposes `fontScale` (0.85–1.4x) for global font scaling controlled via `AccessibilitySettingsModal`.
+`ThemeContext` also exposes `fontScale` (0.85–1.45x / 85%–145%) for global font scaling controlled via `AccessibilitySettingsModal` and `AccessibilityToolbar`.
 
 ---
 
@@ -393,6 +393,7 @@ dark:  { background: '#0A1628', card: '#1E293B', primary: '#38BDF8', text: '#F1F
 5. Logout clears both `AuthContext` and `AsyncStorage`
 
 Forgot Password opens a native in-app modal — no browser redirect.
+SSO authentication is available via `WebBrowser.openAuthSessionAsync` for servers configured with identity providers.
 
 Role detection: `AuthContext` exposes `isStudent` and `isTeacher` flags for conditional rendering.
 
@@ -400,13 +401,13 @@ Role detection: `AuthContext` exposes `isStudent` and `isTeacher` flags for cond
 
 ## 11. SCORM Support
 
-Full SCORM 1.2 compliance via `ScormPlayerScreen.js`:
+Full SCORM 1.2 and 2004 compliance via `ScormPlayerScreen.js` and `CourseContentViewerScreen.js`:
 1. SCORM package URL loaded into a WebView
-2. JavaScript bridge injects a custom `API` object into the WebView window
-3. SCORM content calls LMSInitialize, LMSSetValue, LMSGetValue, LMSFinish
-4. Native app receives via `onMessage`, processes through `ScormDataModel12.js`, syncs to Moodle REST API
+2. JavaScript bridge injects custom `API` (SCORM 1.2) and `API_1484_11` (SCORM 2004) objects into the WebView window
+3. SCORM content calls LMSInitialize, LMSSetValue, LMSGetValue, LMSFinish (or 2004 equivalents)
+4. Native app receives via `onMessage`, processes through SCORM data models, syncs to Moodle REST API
 
-Offline: Progress queued in AsyncStorage and retried on reconnect. Unsupported server functions are gracefully discarded.
+Offline: Progress queued in AsyncStorage and retried on reconnect via `NetworkMonitor`. Unsupported server functions are gracefully discarded.
 
 ---
 
@@ -414,7 +415,7 @@ Offline: Progress queued in AsyncStorage and retried on reconnect. Unsupported s
 
 | Feature | Implementation |
 |:---|:---|
-| Font Scaling | Global fontScale multiplier (0.85–1.4x) via ThemeContext |
+| Font Scaling | Global fontScale multiplier (0.85–1.45x) via ThemeContext & AccessibilityToolbar |
 | High Contrast Mode | Alt color palette with stronger contrast ratios |
 | Screen Reader Labels | accessibilityLabel and accessibilityRole on all interactive elements |
 | Haptic Feedback | expo-haptics on key actions |

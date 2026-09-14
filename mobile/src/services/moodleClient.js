@@ -2,7 +2,7 @@
 // Comprehensive Moodle Web Services client for REST protocol (moodlewsrestformat=json)
 
 export function normalizeMoodleUrl(url) {
-  if (!url || typeof url !== 'string') return 'https://sandbox.moodledemo.net';
+  if (!url || typeof url !== 'string') return 'https://mh.unilearn.org.in';
   let clean = url.trim();
   if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
     if (
@@ -43,7 +43,7 @@ export async function getPublicConfig(serverUrl) {
 }
 
 export class MoodleClient {
-  constructor(baseUrl = 'https://sandbox.moodledemo.net', token = '', onLog = null) {
+  constructor(baseUrl = 'https://mh.unilearn.org.in', token = '', onLog = null) {
     this.baseUrl = normalizeMoodleUrl(baseUrl);
     this.token = token ? token.trim() : '';
     this.onLog = onLog;
