@@ -23,6 +23,25 @@ export function normalizeMoodleUrl(url) {
   return clean;
 }
 
+export async function getPublicConfig(serverUrl) {
+  const endpoint = `${normalizeMoodleUrl(serverUrl)}/webservice/rest/server.php`;
+  const bodyParams = new URLSearchParams();
+  bodyParams.append('wsfunction', 'tool_mobile_get_public_config');
+  bodyParams.append('moodlewsrestformat', 'json');
+
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Accept: 'application/json',
+      'User-Agent': 'MoodleMobile',
+    },
+    body: bodyParams.toString(),
+  });
+  if (!res.ok) throw new Error('Network response was not ok');
+  return await res.json();
+}
+
 export class MoodleClient {
   constructor(baseUrl = 'https://sandbox.moodledemo.net', token = '', onLog = null) {
     this.baseUrl = normalizeMoodleUrl(baseUrl);
@@ -96,24 +115,6 @@ export class MoodleClient {
       }
     } catch (postErr) {
       fetchError = postErr;
-      // 2. Fallback to GET request
-      try {
-        const getUrl = `${endpoint}?${bodyParams.toString()}`;
-        const getRes = await fetch(getUrl, {
-          method: 'GET',
-          headers: { 
-            Accept: 'application/json',
-            'User-Agent': 'MoodleMobile',
-          },
-        });
-        if (getRes.ok) {
-          const getText = await getRes.text();
-          rawResponse = JSON.parse(getText);
-          fetchError = null;
-        }
-      } catch (getErr) {
-        fetchError = postErr;
-      }
     }
 
     const duration = Date.now() - startTime;
@@ -271,7 +272,7 @@ export class MoodleClient {
   // ==========================================
 
   async getSiteInfo() {
-    return this.call('core_webservice_get_site_info', {}, 'POST');
+    return this.call('tool_mobile_get_site_info', {}, 'POST');
   }
 
   async getUsersByField(field = 'id', values = []) {
@@ -626,6 +627,18 @@ export class MoodleClient {
   // 10. NOTIFICATIONS FUNCTIONS (message_popup)
   // ==========================================
 
+  async addDevice(appid, name, model, platform, version, pushid, uuid) {
+    return this.call('core_user_add_user_device', {
+      appid,
+      name,
+      model,
+      platform,
+      version,
+      pushid,
+      uuid
+    }, 'POST');
+  }
+
   async getPopupNotifications(userIdTo, limit = 20) {
     return this.call('message_popup_get_popup_notifications', { useridto: userIdTo, limit }, 'POST');
   }
@@ -700,9 +713,6 @@ export class MoodleClient {
     return this.call('mod_scorm_insert_tracks', { scoid: scoId, tracks }, 'POST');
   }
 
-  async getLessonsByCourses(courseIds = []) {
-    return this.call('mod_lesson_get_lessons_by_courses', { courseids: courseIds }, 'POST');
-  }
 
   async getAutoLoginKey(privatetoken = '') {
     return this.call('tool_mobile_get_autologin_key', { privatetoken }, 'POST');

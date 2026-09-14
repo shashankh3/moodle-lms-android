@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MobileAPI } from '../services/apiAdapter';
+import { registerForPushNotificationsAsync, getDeviceInfo } from '../services/PushNotificationService';
 
 const AUTH_USER_KEY = 'moodle_mobile_active_user_v2';
 const AUTH_STATE_KEY = 'moodle_mobile_is_auth_v2';
@@ -39,9 +40,51 @@ export function AuthProvider({ children }) {
         setIsAuthenticated(true);
         await AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(res.user));
         await AsyncStorage.setItem(AUTH_STATE_KEY, 'true');
+
+        setTimeout(async () => {
+          try {
+            const token = await registerForPushNotificationsAsync();
+            if (token) {
+              const info = getDeviceInfo();
+              await MobileAPI.registerPushDevice(token, info.uuid, info.platform, info.model);
+            }
+          } catch (e) {
+            console.log('Push registration error:', e);
+          }
+        }, 1000);
+
         return { success: true, user: res.user, siteInfo: res.siteInfo };
       }
       return { success: false, error: 'Could not connect to Moodle instance' };
+    } catch (e) {
+      return { success: false, error: e.message || 'Moodle connection error' };
+    }
+  };
+
+  const loginWithToken = async (serverUrl, token, privatetoken = '') => {
+    try {
+      const res = await MobileAPI.loginWithToken(serverUrl, token, privatetoken);
+      if (res && res.user) {
+        setCurrentUser(res.user);
+        setIsAuthenticated(true);
+        await AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(res.user));
+        await AsyncStorage.setItem(AUTH_STATE_KEY, 'true');
+
+        setTimeout(async () => {
+          try {
+            const pushToken = await registerForPushNotificationsAsync();
+            if (pushToken) {
+              const info = getDeviceInfo();
+              await MobileAPI.registerPushDevice(pushToken, info.uuid, info.platform, info.model);
+            }
+          } catch (e) {
+            console.log('Push registration error:', e);
+          }
+        }, 1000);
+
+        return { success: true, user: res.user, siteInfo: res.siteInfo };
+      }
+      return { success: false, error: res.error || 'Could not validate token' };
     } catch (e) {
       return { success: false, error: e.message || 'Moodle connection error' };
     }
@@ -62,6 +105,7 @@ export function AuthProvider({ children }) {
         isAuthenticated,
         isLoading,
         loginWithMoodle,
+        loginWithToken,
         logout,
         isStudent: currentUser?.role === 'student',
         isTeacher: currentUser?.role === 'editingteacher' || currentUser?.role === 'teacher',

@@ -18,6 +18,10 @@ import {
 import { WebView } from 'react-native-webview';
 import { useTranslation } from 'react-i18next';
 import * as WebBrowser from 'expo-web-browser';
+
+WebBrowser.maybeCompleteAuthSession();
+
+import { getPublicConfig } from '../../services/moodleClient';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import UniLearnLogo from '../../components/UniLearnLogo';
@@ -43,10 +47,11 @@ import {
 
 export default function LoginScreen() {
   const { theme } = useTheme();
-  const { loginWithMoodle } = useAuth();
+  const { loginWithMoodle, loginWithToken } = useAuth();
   const { t, i18n } = useTranslation();
 
   const [serverUrl, setServerUrl] = useState('https://mh.unilearn.org.in');
+  const [ssoAvailable, setSsoAvailable] = useState(false);
   const [showServerConfig, setShowServerConfig] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -71,6 +76,24 @@ export default function LoginScreen() {
   const closeInAppBrowser = () => {
     setBrowserModal({ visible: false, url: '', title: '' });
   };
+
+  useEffect(() => {
+    let mounted = true;
+    async function checkSso() {
+      try {
+        const config = await getPublicConfig(serverUrl);
+        if (mounted && config && (config.typeoflogin == 3 || (config.identityproviders && config.identityproviders.length > 0))) {
+          setSsoAvailable(true);
+        } else if (mounted) {
+          setSsoAvailable(false);
+        }
+      } catch (e) {
+        if (mounted) setSsoAvailable(false);
+      }
+    }
+    checkSso();
+    return () => { mounted = false; };
+  }, [serverUrl]);
 
   useEffect(() => {
     if (!browserModal.visible) return;
@@ -112,6 +135,47 @@ export default function LoginScreen() {
 
     if (!res.success) {
       setErrorMessage(res.error || 'Invalid credentials or connection error. Please verify your username and password.');
+    }
+  };
+
+  const handleSSOLogin = async () => {
+    setErrorMessage('');
+    setLoading(true);
+    try {
+      const cleanUrl = (serverUrl.trim() || 'https://mh.unilearn.org.in').replace(/\/+$/, '');
+      const passport = Math.random().toString(36).substring(2, 15);
+      const launchUrl = `${cleanUrl}/admin/tool/mobile/launch.php?service=moodle_mobile_app&passport=${passport}&urlscheme=com.moodle.lms.app`;
+      
+      const result = await WebBrowser.openAuthSessionAsync(launchUrl, 'com.moodle.lms.app://');
+      
+      if (result.type === 'success' && result.url) {
+        const urlStr = result.url;
+        const tokenMatch = urlStr.match(/token=([^&]+)/);
+        if (tokenMatch) {
+          const base64Token = decodeURIComponent(tokenMatch[1]);
+          let decoded = base64Token;
+          try {
+            decoded = atob(base64Token);
+          } catch (e) {
+            console.warn('Base64 decode failed, using raw token', e);
+          }
+          
+          let token = decoded;
+          let privatetoken = '';
+          if (decoded.includes(':::')) {
+            [token, privatetoken] = decoded.split(':::');
+          }
+          
+          const res = await loginWithToken(cleanUrl, token, privatetoken);
+          if (!res.success) {
+             setErrorMessage(res.error || 'Failed to complete SSO login.');
+          }
+        }
+      }
+    } catch (e) {
+      setErrorMessage('Browser login failed: ' + e.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -283,6 +347,21 @@ export default function LoginScreen() {
                 <Text style={styles.loginBtnText}>{t('login_title')}</Text>
               )}
             </TouchableOpacity>
+
+            {ssoAvailable && (
+              <TouchableOpacity
+                style={[styles.loginBtn, { backgroundColor: '#0F172A', marginTop: 10 }]}
+                onPress={handleSSOLogin}
+                disabled={loading}
+                activeOpacity={0.85}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Text style={styles.loginBtnText}>Browser Login (SSO)</Text>
+                )}
+              </TouchableOpacity>
+            )}
 
             {/* Bottom Card Strip: Cookies must be enabled */}
             <View style={styles.cardFooterStrip}>

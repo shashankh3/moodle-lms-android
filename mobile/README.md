@@ -1,4 +1,4 @@
-﻿# UNIlearn Maharashtra — Mobile LMS
+# UNIlearn Maharashtra — Mobile LMS
 
 > **A modern, fully native mobile Learning Management System for Maharashtra State's UNIlearn platform.**  
 > Built with **React Native + Expo**, powered by **Moodle REST API**, and designed for government learners across Maharashtra.
@@ -49,8 +49,9 @@
 
 | Layer | Technology | Version |
 |:---|:---|:---|
-| Framework | React Native | 0.85.3 |
-| Build Toolchain | Expo (Managed + Bare) | 56.0.20 |
+| Framework | React Native | 0.86.3 |
+| Build Toolchain | Expo (SDK 57) | ^57.0.22 |
+| Runtime | React | 19.2.3 |
 | Navigation | React Navigation (Stack + Bottom Tabs) | v7 |
 | Styling | React Native StyleSheet (Vanilla) | — |
 | State Management | React Context API | — |
@@ -58,12 +59,12 @@
 | Offline Storage | AsyncStorage | ^2.1.0 |
 | Internationalization | i18next + react-i18next | ^26.4.0 / ^17 |
 | Icons | lucide-react-native | ^0.475.0 |
-| Gradients | expo-linear-gradient | ~56.0.4 |
-| Images | expo-image | ~56.0.12 |
+| Gradients | expo-linear-gradient | ~57.0.2 |
+| Images | expo-image | ~57.0.5 |
 | Charts | react-native-chart-kit + react-native-svg | ^7.0.2 |
 | WebView | react-native-webview | ^13.16.1 |
-| Haptics | expo-haptics | ~56.0.3 |
-| Print / Share | expo-print + expo-sharing | ^57.x |
+| Haptics | expo-haptics | ~57.0.3 |
+| Print / Share | expo-print + expo-sharing | ~57.0.x |
 | Performance Lists | @shopify/flash-list | ^2.0.2 |
 | Build & CI | EAS Build (Expo Application Services) | CLI >= 14 |
 

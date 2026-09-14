@@ -1,6 +1,6 @@
 const fetch = require('node-fetch');
 
-const token = '361a3db9763129c3aeb89f0671e445c6';
+const token = process.env.EXPO_PUBLIC_MOODLE_TOKEN || 'YOUR_TOKEN_HERE';
 const baseUrl = 'https://mh.unilearn.org.in';
 const userId = 14;
 

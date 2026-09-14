@@ -1,58 +1,44 @@
 /**
  * NetworkMonitor — Phase 3 (Moodle Offline Pattern)
- * Zero-dependency pure JavaScript network & sync manager.
- * Works seamlessly in Expo Go, Android APK, iOS, and Web without native dependencies.
+ * Uses @react-native-community/netinfo for real-time connectivity status.
  */
 import { ScormOfflineQueue } from './scorm/ScormOfflineQueue';
 import { MobileAPI } from './apiAdapter';
+import NetInfo from '@react-native-community/netinfo';
 
 let _isOnline = true;
-let _intervalId = null;
+let _unsubscribe = null;
 let _initialized = false;
 
 export const NetworkMonitor = {
   /**
-   * Start periodic connectivity check and offline track sync.
-   * Call this once at app startup (in App.js or root component).
+   * Start passive network listening.
    */
   initialize() {
     if (_initialized) return;
     _initialized = true;
 
+    _unsubscribe = NetInfo.addEventListener(state => {
+      const wasOffline = !_isOnline;
+      // If isInternetReachable is null, assume true until proven otherwise
+      _isOnline = !!(state.isConnected && state.isInternetReachable !== false);
+      
+      if (wasOffline && _isOnline) {
+        this.checkAndSync();
+      }
+    });
+
     // Run initial sync check
     this.checkAndSync();
-
-    // Check connectivity and sync queued tracks every 30 seconds
-    _intervalId = setInterval(() => {
-      this.checkAndSync();
-    }, 30000);
   },
 
   /**
-   * Checks network connectivity and drains the offline SCORM track queue if online.
+   * Drains the offline SCORM track queue if online.
    */
   async checkAndSync() {
     try {
       const client = await MobileAPI.getClient();
       if (!client || !client.baseUrl) return;
-
-      const wasOffline = !_isOnline;
-
-      // Quick HEAD / lightweight fetch to test real server reachability
-      const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-      const timeoutId = controller ? setTimeout(() => controller.abort(), 5000) : null;
-
-      try {
-        const res = await fetch(`${client.baseUrl}/login/token.php`, {
-          method: 'GET',
-          signal: controller?.signal,
-        });
-        if (timeoutId) clearTimeout(timeoutId);
-        _isOnline = res.status < 500;
-      } catch (netErr) {
-        if (timeoutId) clearTimeout(timeoutId);
-        _isOnline = false;
-      }
 
       if (_isOnline) {
         // Drain any pending offline tracks
@@ -85,12 +71,12 @@ export const NetworkMonitor = {
   },
 
   /**
-   * Tear down the monitor interval.
+   * Tear down the monitor listener.
    */
   destroy() {
-    if (_intervalId) {
-      clearInterval(_intervalId);
-      _intervalId = null;
+    if (_unsubscribe) {
+      _unsubscribe();
+      _unsubscribe = null;
       _initialized = false;
     }
   },

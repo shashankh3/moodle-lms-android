@@ -110,7 +110,7 @@ export const AuthService = {
               };
               this._autoLoginCache = warmCache;
               this._autoLoginCacheLoaded = true;
-              AsyncStorage.setItem(STORAGE_KEYS.AUTOLOGIN_CACHE, JSON.stringify(warmCache)).catch(() => {});
+              this.setStoredItem(STORAGE_KEYS.AUTOLOGIN_CACHE, warmCache).catch(() => {});
             }
           } catch (e) {
             console.log('[AutoLogin] Pre-warm note:', e.message);

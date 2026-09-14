@@ -1,8 +1,9 @@
 {
   "expo": {
     "name": "UNIlearn Maharashtra",
-    "slug": "unilearn-maharashtra",
+    "slug": "moodle-lms-mobile",
     "version": "1.0.0",
+    "scheme": "com.moodle.lms.app",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -21,7 +22,6 @@
         "backgroundColor": "#004F7A"
       },
       "package": "in.org.unilearn.mh",
-      "usesCleartextTraffic": true,
       "permissions": [
         "INTERNET",
         "ACCESS_NETWORK_STATE"
@@ -34,6 +34,12 @@
       "eas": {
         "projectId": "3add74d6-d78f-4af6-8556-d6580af644d3"
       }
-    }
+    },
+    "plugins": [
+      "expo-image",
+      "expo-sharing",
+      "expo-status-bar",
+      "expo-web-browser"
+    ]
   }
 }

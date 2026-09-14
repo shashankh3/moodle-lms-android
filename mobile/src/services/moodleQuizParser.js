@@ -69,9 +69,8 @@ export const MoodleQuizParser = {
         const labelRegex = new RegExp(`<label[^>]*for="${inputId}"[^>]*>([\\s\\S]*?)<\/label>`, 'i');
         let labelMatch = html.match(labelRegex);
         
-        // Moodle 4.0+ uses divs with aria-labelledby instead of labels
         if (!labelMatch) {
-          const divLabelRegex = new RegExp(`id="${inputId}_label"[^>]*>([\\s\\S]*?)<\/div>\\s*<\/div>`, 'i');
+          const divLabelRegex = new RegExp(`id="${inputId}_label"[^>]*>([\\s\\S]*?)<\/div>`, 'i');
           labelMatch = html.match(divLabelRegex);
         }
 
