@@ -1,0 +1,10 @@
+{
+  "name": "moodle-lms-android",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "start": "npm --prefix mobile start",
+    "android": "npm --prefix mobile run android",
+    "mobile": "npm --prefix mobile start"
+  }
+}
