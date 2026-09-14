@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, AppState } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
@@ -14,9 +14,13 @@ import { useFonts } from 'expo-font';
 import { initGlobalDyslexiaPatcher, subscribeDyslexiaState } from './src/utils/dyslexiaPatcher';
 import './src/i18n';
 import { NetworkMonitor } from './src/services/NetworkMonitor';
+import { migrateSensitiveStorage } from './src/services/storage/SecureStorage';
 
 // Initialize offline sync monitor (Phase 3 — syncs queued SCORM tracks on reconnect)
 NetworkMonitor.initialize();
+
+// Move auth tokens from AsyncStorage to encrypted SecureStore (one-time migration)
+migrateSensitiveStorage();
 
 // Initialize the global typography interceptor once at app startup
 initGlobalDyslexiaPatcher();
@@ -33,6 +37,16 @@ function MainApp() {
       setDyslexiaKey((prev) => prev + 1);
     });
     return unsubscribe;
+  }, []);
+
+  // Flush the offline sync queue the moment the app comes back to foreground
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        NetworkMonitor.checkAndSync();
+      }
+    });
+    return () => sub.remove();
   }, []);
 
   return (

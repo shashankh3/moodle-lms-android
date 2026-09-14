@@ -32,6 +32,8 @@ export const MoodleQuizParser = {
       result.type = 'shortanswer';
     } else if (/class="[^"]*\bmatch\b[^"]*"/.test(html)) {
       result.type = 'match';
+    } else if (/class="[^"]*\bqtype-essay\b[^"]*"|class="[^"]*\bessay\b[^"]*"/.test(html)) {
+      result.type = 'essay';
     }
 
     // 2. Extract sequencecheck (crucial for Moodle to accept the answer)
@@ -91,6 +93,14 @@ export const MoodleQuizParser = {
       const inputMatch = html.match(/<input[^>]*type="text"[^>]*name="([^"]+)"/i);
       if (inputMatch) {
         result.inputName = inputMatch[1];
+      }
+    }
+
+    // 5B. Extract Essay (textarea editor)
+    if (result.type === 'essay') {
+      const taMatch = html.match(/<textarea[^>]*name="([^"]+)"/i);
+      if (taMatch) {
+        result.inputName = taMatch[1];
       }
     }
 

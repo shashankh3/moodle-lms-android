@@ -1,7 +1,8 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { MobileAPI } from '../services/apiAdapter';
 import { registerForPushNotificationsAsync, getDeviceInfo } from '../services/PushNotificationService';
+import { storage } from '../services/storage/SecureStorage';
+import { setAuthErrorHandler } from '../services/moodleClient';
 
 const AUTH_USER_KEY = 'moodle_mobile_active_user_v2';
 const AUTH_STATE_KEY = 'moodle_mobile_is_auth_v2';
@@ -13,11 +14,21 @@ export function AuthProvider({ children }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Auto-logout when Moodle reports the session token is invalid/expired.
+  // Re-registered on each render so the closure always sees fresh logout.
+  useEffect(() => {
+    setAuthErrorHandler(() => {
+      console.warn('[AuthContext] Moodle session token invalid — forcing logout');
+      if (typeof logoutRef.current === 'function') logoutRef.current();
+    });
+    return () => setAuthErrorHandler(null);
+  });
+
   useEffect(() => {
     async function loadAuth() {
       try {
-        const isAuthStr = await AsyncStorage.getItem(AUTH_STATE_KEY);
-        const savedUser = await AsyncStorage.getItem(AUTH_USER_KEY);
+        const isAuthStr = await storage.getItem(AUTH_STATE_KEY);
+        const savedUser = await storage.getItem(AUTH_USER_KEY);
         if (isAuthStr === 'true' && savedUser) {
           const parsed = JSON.parse(savedUser);
           setCurrentUser(parsed);
@@ -38,8 +49,8 @@ export function AuthProvider({ children }) {
       if (res && res.user) {
         setCurrentUser(res.user);
         setIsAuthenticated(true);
-        await AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(res.user));
-        await AsyncStorage.setItem(AUTH_STATE_KEY, 'true');
+        await storage.setItem(AUTH_USER_KEY, JSON.stringify(res.user));
+        await storage.setItem(AUTH_STATE_KEY, 'true');
 
         setTimeout(async () => {
           try {
@@ -67,8 +78,8 @@ export function AuthProvider({ children }) {
       if (res && res.user) {
         setCurrentUser(res.user);
         setIsAuthenticated(true);
-        await AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(res.user));
-        await AsyncStorage.setItem(AUTH_STATE_KEY, 'true');
+        await storage.setItem(AUTH_USER_KEY, JSON.stringify(res.user));
+        await storage.setItem(AUTH_STATE_KEY, 'true');
 
         setTimeout(async () => {
           try {
@@ -93,10 +104,16 @@ export function AuthProvider({ children }) {
   const logout = async () => {
     setIsAuthenticated(false);
     setCurrentUser(null);
-    await AsyncStorage.removeItem(AUTH_STATE_KEY);
-    await AsyncStorage.removeItem(AUTH_USER_KEY);
+    await storage.removeItem(AUTH_STATE_KEY);
+    await storage.removeItem(AUTH_USER_KEY);
     await MobileAPI.resetToDefaults();
   };
+
+  // Keep the auth-error handler pointed at the latest logout implementation
+  const logoutRef = useRef(null);
+  useEffect(() => {
+    logoutRef.current = logout;
+  });
 
   return (
     <AuthContext.Provider

@@ -1,5 +1,6 @@
 import { STORAGE_KEYS, saveToStorage, getFromStorage, swrFetch, getMoodleMediaUrl, fixMoodleHtmlContent, extractCourseImage } from '../apiAdapter';
 import { MoodleClient, normalizeMoodleUrl } from '../moodleClient';
+import { storage } from '../storage/SecureStorage';
 
 export const coreMethods = {
     async getClient() {
@@ -62,7 +63,7 @@ export const coreMethods = {
     if (this._autoLoginCacheLoaded) return;
     this._autoLoginCacheLoaded = true;
     try {
-      const raw = await AsyncStorage.getItem(STORAGE_KEYS.AUTOLOGIN_CACHE);
+      const raw = await storage.getItem(STORAGE_KEYS.AUTOLOGIN_CACHE);
       if (raw) {
         const parsed = JSON.parse(raw);
         // Only restore if not older than 5.5 minutes
@@ -116,8 +117,8 @@ export const coreMethods = {
                 ts: now,
               };
               this._autoLoginCache = newCache;
-              // Persist to AsyncStorage so it survives reloads
-              AsyncStorage.setItem(STORAGE_KEYS.AUTOLOGIN_CACHE, JSON.stringify(newCache)).catch(() => {});
+              // Persist to encrypted storage so it survives reloads
+              storage.setItem(STORAGE_KEYS.AUTOLOGIN_CACHE, JSON.stringify(newCache)).catch(() => {});
               autoLoginData = newCache;
             }
           } catch (autoLoginErr) {

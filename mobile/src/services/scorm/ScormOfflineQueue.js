@@ -67,6 +67,8 @@ export const ScormOfflineQueue = {
 
       console.log('[ScormOfflineQueue] Syncing', queue.length, 'offline track entries...');
 
+      const remaining = [];
+
       for (const entry of queue) {
         try {
           await client.insertScormTracks(entry.scoId, entry.tracks);

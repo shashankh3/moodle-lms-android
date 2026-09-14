@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MoodleClient, normalizeMoodleUrl } from './moodleClient';
+import { storage } from './storage/SecureStorage';
 
 export const STORAGE_KEYS = {
   SERVER_CONFIG: 'moodle_mobile_server_config',
@@ -83,7 +84,7 @@ export function extractCourseImage(c, token) {
 
 export async function saveToStorage(key, data) {
   try {
-    await AsyncStorage.setItem(key, JSON.stringify(data));
+    await storage.setItem(key, JSON.stringify(data));
   } catch (e) {
     console.error(`Error saving ${key}:`, e);
   }
@@ -91,7 +92,7 @@ export async function saveToStorage(key, data) {
 
 export async function getFromStorage(key) {
   try {
-    const raw = await AsyncStorage.getItem(key);
+    const raw = await storage.getItem(key);
     return raw ? JSON.parse(raw) : null;
   } catch (e) {
     return null;

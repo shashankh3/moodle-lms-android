@@ -1,6 +1,34 @@
 // Moodle REST API Client for Mobile
 // Comprehensive Moodle Web Services client for REST protocol (moodlewsrestformat=json)
 
+// Module-level auth-error handler — invoked when Moodle reports the session
+// token is invalid/expired so the app can force a re-login.
+let _authErrorHandler = null;
+export function setAuthErrorHandler(fn) {
+  _authErrorHandler = typeof fn === 'function' ? fn : null;
+}
+function notifyAuthError(err) {
+  if (_authErrorHandler) {
+    try {
+      _authErrorHandler(err);
+    } catch (e) {
+      // Never let handler errors break the API call path
+    }
+  }
+}
+
+/**
+ * Detects Moodle responses caused by an invalid/expired webservice token.
+ */
+export function isTokenError(data) {
+  if (!data) return false;
+  if (data.errorcode === 'invalidtoken' || data.errorcode === 'tokenexpired' || data.errorcode === 'invalidtokenexpired') {
+    return true;
+  }
+  const msg = String(data.message || '');
+  return /invalid token/i.test(msg) || /token expired/i.test(msg);
+}
+
 export function normalizeMoodleUrl(url) {
   if (!url || typeof url !== 'string') return 'https://mh.unilearn.org.in';
   let clean = url.trim();
@@ -252,6 +280,10 @@ export class MoodleClient {
       const err = new Error(data.message || data.exception);
       err.errorcode = data.errorcode;
       err.debuginfo = data.debuginfo;
+      if (isTokenError(data)) {
+        err.isAuthError = true;
+        notifyAuthError(err);
+      }
       this.logRequest(method, wsfunction, params, data, duration, err);
       throw err;
     }
@@ -259,6 +291,10 @@ export class MoodleClient {
     if (data && data.errorcode) {
       const err = new Error(data.message || data.errorcode);
       err.errorcode = data.errorcode;
+      if (isTokenError(data)) {
+        err.isAuthError = true;
+        notifyAuthError(err);
+      }
       this.logRequest(method, wsfunction, params, data, duration, err);
       throw err;
     }

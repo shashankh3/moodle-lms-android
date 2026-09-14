@@ -369,6 +369,27 @@ export default function QuizPlayerScreen({ route, navigation }) {
                      onChangeText={(text) => handleShortAnswer(currentQ, text)}
                    />
                 </View>
+              ) : currentQ.type === 'essay' ? (
+                <View style={styles.optionsList}>
+                   <TextInput
+                     style={[
+                       styles.textInput,
+                       {
+                         color: theme.text,
+                         borderColor: theme.cardBorder,
+                         backgroundColor: theme.surfaceSubtle,
+                         height: 140,
+                         textAlignVertical: 'top',
+                         paddingTop: 12,
+                       },
+                     ]}
+                     multiline
+                     placeholder="Type your answer here..."
+                     placeholderTextColor={theme.textDim}
+                     value={selectedAnswers[`${currentQ.id}_ui_selection`] || ''}
+                     onChangeText={(text) => handleShortAnswer(currentQ, text)}
+                   />
+                </View>
               ) : currentQ.type === 'match' ? (
                 <View style={styles.optionsList}>
                   {currentQ.subQuestions.map((subQ) => (

@@ -6,6 +6,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MoodleClient, normalizeMoodleUrl } from '../moodleClient';
 import { getMoodleMediaUrl } from '../apiAdapter';
+import { storage } from '../storage/SecureStorage';
 
 export const STORAGE_KEYS = {
   SERVER_CONFIG: 'moodle_mobile_server_config',
@@ -21,7 +22,7 @@ export const AuthService = {
 
   async getStoredItem(key) {
     try {
-      const raw = await AsyncStorage.getItem(key);
+      const raw = await storage.getItem(key);
       return raw ? JSON.parse(raw) : null;
     } catch (e) {
       return null;
@@ -30,7 +31,7 @@ export const AuthService = {
 
   async setStoredItem(key, data) {
     try {
-      await AsyncStorage.setItem(key, JSON.stringify(data));
+      await storage.setItem(key, JSON.stringify(data));
     } catch (e) {
       console.error(`[AuthService] Error saving ${key}:`, e);
     }
@@ -130,7 +131,7 @@ export const AuthService = {
   },
 
   async logout() {
-    await AsyncStorage.multiRemove(Object.values(STORAGE_KEYS));
+    await storage.multiRemove(Object.values(STORAGE_KEYS));
     this._client = null;
     this._autoLoginCache = null;
     this._autoLoginCacheLoaded = false;

@@ -1,5 +1,6 @@
 import { STORAGE_KEYS, saveToStorage, getFromStorage, swrFetch, getMoodleMediaUrl, fixMoodleHtmlContent, extractCourseImage } from '../apiAdapter';
 import { MoodleClient, normalizeMoodleUrl } from '../moodleClient';
+import { storage } from '../storage/SecureStorage';
 
 export const authMethods = {
     async loginWithMoodle(serverUrl, username, password, service = 'moodle_mobile_app') {
@@ -139,10 +140,7 @@ export const authMethods = {
   },
 
     async resetToDefaults() {
-    await AsyncStorage.multiRemove(Object.values(STORAGE_KEYS));
-    await SecureStore.deleteItemAsync(STORAGE_KEYS.SERVER_CONFIG);
-    await SecureStore.deleteItemAsync(STORAGE_KEYS.ACTIVE_USER);
-    await SecureStore.deleteItemAsync(STORAGE_KEYS.AUTOLOGIN_CACHE);
+    await storage.multiRemove(Object.values(STORAGE_KEYS));
     this._client = null;
   },
 
