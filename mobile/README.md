@@ -416,9 +416,9 @@ dark:  { background: '#0A1628', card: '#1E293B', primary: '#38BDF8', text: '#F1F
 
 1. User enters Moodle username and password
 2. App calls `core_user_get_users_by_field` to validate and fetch the auth token
-3. Token and user profile stored in `AuthContext` (memory) and `AsyncStorage` (auto-login)
-4. On next launch, stored token is checked; if valid, user is auto-logged in
-5. Logout clears both `AuthContext` and `AsyncStorage`
+3. Token and user profile stored in `AuthContext` (memory) and `SecureStorage` — encrypted `expo-secure-store`, with AsyncStorage fallback in Expo Go (auto-login)
+4. On next launch, stored token is checked; if valid, user is auto-logged in. An invalid/expired token triggers automatic logout
+5. Logout clears both `AuthContext` and `SecureStorage`
 
 Forgot Password opens a native in-app modal — no browser redirect.
 SSO authentication is available via `WebBrowser.openAuthSessionAsync` for servers configured with identity providers.
@@ -457,7 +457,7 @@ Offline: Progress queued in AsyncStorage and retried on reconnect via `NetworkMo
 
 | Feature | Storage | Sync Strategy |
 | :--- | :--- | :--- |
-| Auth token | AsyncStorage | Persisted; cleared on logout |
+| Auth token | SecureStore (encrypted; AsyncStorage fallback in Expo Go) | Persisted; cleared on logout; auto-logout on expiry |
 | App language | AsyncStorage | Persisted across restarts |
 | Theme preference | AsyncStorage | Persisted across restarts |
 | SCORM progress | AsyncStorage (queue) | Retried on next online event |
@@ -587,7 +587,7 @@ Use your Moodle username and password from `https://mh.unilearn.org.in` to log i
 
 ---
 
-## License
+## Acknowledgements
 
 Developed for the **Maharashtra State government's UNIlearn initiative** in partnership with **UNICEF** and **United Nations** programmes.
 
