@@ -1,6 +1,6 @@
 # UNIlearn Maharashtra — Mobile LMS
 
-> **A modern, fully native mobile Learning Management System for Maharashtra State's UNIlearn platform.**  
+> **A modern, native React Native mobile Learning Management System for Maharashtra State's UNIlearn platform.**  
 > Built with **React Native + Expo**, powered by **Moodle REST API**, and designed for government learners across Maharashtra.
 
 ---
@@ -33,10 +33,12 @@
 **UNIlearn Maharashtra** is the official mobile application for the **Maharashtra State government's UNIlearn e-learning platform** (`https://mh.unilearn.org.in`). It provides teachers and students with a rich, native mobile interface to access Moodle-powered learning content — without needing a browser.
 
 ### Target Users
+
 - **Students / Enrolled Learners** — Government learners, ECCE teachers, ASHA workers, and trainees enrolled in state-level programs.
 - **Teachers / Instructors** — Course owners who can view analytics dashboards and manage content.
 
 ### Key Goals
+
 - Full native mobile experience — no browser popups or web redirects
 - Works in low-bandwidth environments (Moodle REST API over JSON)
 - Trilingual UI — English, Hindi, Marathi
@@ -48,7 +50,7 @@
 ## 2. Tech Stack
 
 | Layer | Technology | Version |
-|:---|:---|:---|
+| :--- | :--- | :--- |
 | Framework | React Native | 0.86.3 |
 | Build Toolchain | Expo (SDK 57) | ^57.0.22 |
 | Runtime | React | 19.2.3 |
@@ -57,7 +59,7 @@
 | State Management | React Context API | — |
 | Server Communication | Moodle REST API (JSON) via fetch | — |
 | Offline Storage | AsyncStorage | ^2.1.0 |
-| Internationalization | i18next + react-i18next | ^26.4.0 / ^17 |
+| Internationalization | i18next + react-i18next | ^26.4.0 / ^17.0.12 |
 | Icons | lucide-react-native | ^0.475.0 |
 | Gradients | expo-linear-gradient | ~57.0.2 |
 | Images | expo-image | ~57.0.5 |
@@ -72,7 +74,7 @@
 
 ## 3. Architecture
 
-```
+```text
 App.js (Entry Point)
   NavigationContainer + AuthContext + ThemeContext
        |
@@ -93,6 +95,7 @@ App.js (Entry Point)
 ```
 
 ### Design Principles
+
 - **No External Browser Redirects** — All navigation stays within the app using `<WebView />` for rich content and native screens for data-driven views.
 - **API-First** — All data (courses, grades, badges, certificates) is fetched live from the Moodle server using JSON REST APIs.
 - **Context over Redux** — `AuthContext` and `ThemeContext` provide lightweight global state without a heavy state library.
@@ -102,7 +105,7 @@ App.js (Entry Point)
 
 ## 4. Project Structure
 
-```
+```text
 mobile/
 ├── App.js                         # Root entry: Contexts, NavigationContainer, Drawer
 ├── index.js                       # Expo entry point
@@ -175,16 +178,18 @@ mobile/
 ## 5. Screens & Features
 
 ### Auth — LoginScreen.js
+
 - Username/password login via Moodle token authentication
 - In-app password reset modal — triggers Moodle password reset email without any browser redirect
 - Language switcher (EN / HI / MR) on the login screen
 - Accessible form with large touch targets and screen reader labels
 
 ### Dashboard — DashboardScreen.js
+
 The primary home screen for enrolled students.
 
 | Section | Description |
-|:---|:---|
+| :--- | :--- |
 | Greeting Card | Personalized greeting with avatar initial, role badge, wave emoji |
 | Motivational Clue Banner | Shows course count if enrolled; prompts catalog exploration if not |
 | Recently Accessed Courses | Horizontal scroll card strip of recently accessed courses |
@@ -194,73 +199,90 @@ The primary home screen for enrolled students.
 | Pull-to-refresh | Full data refresh of courses, badges, and recent activity |
 
 ### Maharashtra State Dashboard — MaharashtraDashboardScreen.js
+
 - Opens the official Maharashtra State Analytics Portal in a native in-app WebView
 - Accessible via the "DASHBOARD" pill in the UniLearnLogo header
 - Features live reload button and native back navigation — user never leaves the app
 
 ### Courses — CoursesScreen.js + CourseCatalogScreen.js
+
 - CoursesScreen: Enrolled courses list with search and section grouping
 - CourseCatalogScreen: Browse all server-published categories and courses; accordion expand/collapse
 
 ### Course Detail — CourseDetailScreen.js
+
 - Full course info: banner image, description, teacher, progress %
 - Module and activity list grouped by section
 - Navigation to activity types (SCORM, Quiz, Page, Resource, Lesson, Assignment, Forum)
 
 ### Course Content Viewer — CourseContentViewerScreen.js
+
 - Renders Moodle lesson pages, HTML pages, and rich text content
 - Certificate PDF download and share support
 
 ### SCORM Player — ScormPlayerScreen.js
+
 - Plays SCORM 1.2 packages in a WebView with full SCORM API bridge
 - Tracks: cmi.core.lesson_status, cmi.core.score.raw, cmi.suspend_data, etc.
 - Offline queue — progress saved locally and synced to server on reconnect
 
 ### Quiz Player — QuizPlayerScreen.js
+
 - Fetches quiz attempts via Moodle quiz API
 - Renders parsed HTML questions (multiple choice, true/false, short answer)
 - Submit attempt and display results in-app
 
 ### Grades — GradesScreen.js
+
 - Grade summary per enrolled course
 - Displays letter grade, percentage, total/maximum marks
 
 ### Calendar — CalendarScreen.js
+
 - Monthly and list view of upcoming events (assignments, deadlines, site events)
 - Color-coded by event type
 
 ### Badges — BadgesScreen.js
+
 - Full gallery of all earned Moodle badges with image, name, description, awarded date
 
 ### Certificates — CertificatesScreen.js
+
 - Lists custom certificates (mod_customcert) issued upon course completion
 - Download as PDF and Share via native share sheet
 
 ### Assignments — AssignmentViewScreen.js
+
 - View assignment brief, due date, grading details
 - Submission status and file attachments
 
 ### Forums — ForumScreen.js
+
 - Browse forum discussions by course; read posts and thread replies
 
 ### Messages — MessagesScreen.js
+
 - Moodle messaging inbox; read conversation threads
 
 ### Private Files — PrivateFilesScreen.js
+
 - View and download files from the user's Moodle private files area
 
 ### Analytics — AnalyticsScreen.js (Teacher only)
+
 - Course enrollment statistics and completion rates
 - Charts powered by react-native-chart-kit
 - Visible only when logged-in user has a teacher role
 
 ### Settings — SettingsScreen.js
+
 - Language selection (EN / HI / MR)
 - Dark / Light mode toggle
 - Font size accessibility controls
 - App version info and logout
 
 ### More Menu — MoreMenuScreen.js
+
 - Secondary navigation hub: Badges, Certificates, Assignments, Forums, Private Files, Settings
 
 ---
@@ -269,7 +291,7 @@ The primary home screen for enrolled students.
 
 ### Stack Structure
 
-```
+```text
 RootNavigator
 ├── [Unauthenticated Stack]
 │   └── LoginScreen
@@ -299,6 +321,7 @@ RootNavigator
 ```
 
 ### Navigation Reference Pattern
+
 `OfficialDrawer.js` renders **outside** the `NavigationContainer`. Standard `useNavigation()` throws an error in this context. A shared `createNavigationContainerRef()` is used instead:
 
 ```js
@@ -318,16 +341,19 @@ navigationRef.navigate('MaharashtraDashboard');
 ## 7. Services & API Layer
 
 ### moodleClient.js
+
 Low-level HTTP client for all Moodle REST API calls:
+
 - Base URL: `https://mh.unilearn.org.in/webservice/rest/server.php`
 - Format: json; Auth: Moodle token in `wstoken` query param
 - Handles: network errors, Moodle exception responses, token expiry
 
 ### apiAdapter.js
+
 High-level adapter wrapping all Moodle web service functions:
 
 | Category | Functions Used |
-|:---|:---|
+| :--- | :--- |
 | Auth | core_user_get_users_by_field, password reset |
 | Courses | core_enrol_get_users_courses, core_course_get_contents |
 | Catalog | core_course_get_categories, core_course_search_courses |
@@ -345,7 +371,7 @@ High-level adapter wrapping all Moodle web service functions:
 ### SCORM Services
 
 | File | Purpose |
-|:---|:---|
+| :--- | :--- |
 | ScormService.js | Manages SCORM 1.2 session: initialize, getValue, setValue, commit, finish |
 | ScormDataModel12.js | Full SCORM 1.2 CMI data model (cmi.core.*, cmi.objectives.*, etc.) |
 | ScormOfflineQueue.js | Persists unsynced entries in AsyncStorage; retries on reconnect; discards unsupported entries |
@@ -414,7 +440,7 @@ Offline: Progress queued in AsyncStorage and retried on reconnect via `NetworkMo
 ## 12. Accessibility
 
 | Feature | Implementation |
-|:---|:---|
+| :--- | :--- |
 | Font Scaling | Global fontScale multiplier (0.85–1.45x) via ThemeContext & AccessibilityToolbar |
 | High Contrast Mode | Alt color palette with stronger contrast ratios |
 | Screen Reader Labels | accessibilityLabel and accessibilityRole on all interactive elements |
@@ -427,7 +453,7 @@ Offline: Progress queued in AsyncStorage and retried on reconnect via `NetworkMo
 ## 13. Offline Support
 
 | Feature | Storage | Sync Strategy |
-|:---|:---|:---|
+| :--- | :--- | :--- |
 | Auth token | AsyncStorage | Persisted; cleared on logout |
 | App language | AsyncStorage | Persisted across restarts |
 | Theme preference | AsyncStorage | Persisted across restarts |
@@ -444,13 +470,12 @@ Offline: Progress queued in AsyncStorage and retried on reconnect via `NetworkMo
 npm install
 npx expo start          # Start dev server
 npx expo run:android    # Run on Android
-npx expo run:ios        # Run on iOS (Mac only)
 ```
 
 ### EAS Build Profiles
 
 | Profile | Distribution | Android Build |
-|:---|:---|:---|
+| :--- | :--- | :--- |
 | development | Internal (dev client) | Debug APK |
 | preview | Internal | Release APK |
 | production | Store / Public | Release APK |
@@ -471,7 +496,7 @@ eas build --platform android --profile production
 ### app.json Key Settings
 
 | Key | Value |
-|:---|:---|
+| :--- | :--- |
 | App Name | UNIlearn Maharashtra |
 | Slug | unilearn-maharashtra |
 | Version | 1.0.0 |
@@ -487,12 +512,15 @@ API Base URL: `https://mh.unilearn.org.in`
 ## 16. Key Components
 
 ### UniLearnLogo.js
+
 Renders the branded UNIlearn logo with a "DASHBOARD" pill button that opens the Maharashtra State Analytics screen via `navigationRef` with haptic feedback.
 
 ### OfficialTopHeader.js
+
 Top app bar on all authenticated screens: title, hamburger menu, search, notifications, dark/light toggle, accessibility button.
 
 ### OfficialDrawer.js
+
 Side navigation drawer: user profile, full navigation links, logout, language switcher, theme toggle. Uses `navigationRef` since it renders outside `NavigationContainer`.
 
 ---
@@ -500,7 +528,9 @@ Side navigation drawer: user profile, full navigation links, logout, language sw
 ## 17. Known Notes & Decisions
 
 ### No External Browser Redirects
+
 All navigation stays within the app:
+
 - Password reset → in-app modal (not forgot_password.php)
 - Maharashtra dashboard → WebView (not Linking.openURL)
 - SCORM content → WebView with native SCORM bridge
@@ -508,15 +538,17 @@ All navigation stays within the app:
 ### WebView vs. API Call vs. Browser Redirect
 
 | Method | Used When |
-|:---|:---|
+| :--- | :--- |
 | API Call (fetch) | Data retrieval — rendered as native UI |
 | WebView | Rich interactive HTML content (SCORM, D3 maps) — stays in-app |
 | Browser Redirect (Linking) | NOT USED — avoided per project requirements |
 
 ### SCORM Offline Queue
+
 The server does not support `mod_scorm_insert_tracks` (returns external_functions error). The offline queue detects this and gracefully discards the entry to prevent retry flooding.
 
 ### Devanagari Rendering
+
 Avoid `letterSpacing` on Devanagari text — it breaks conjunct consonant clusters. Use `lineHeight` (1.4–1.6x of font size) and sufficient vertical padding.
 
 ---
@@ -524,18 +556,18 @@ Avoid `letterSpacing` on Devanagari text — it breaks conjunct consonant cluste
 ## 18. Getting Started
 
 ### Prerequisites
+
 - Node.js >= 18
 - npm >= 9
 - Expo CLI (`npm install -g expo-cli`) or use `npx expo`
 - Android Studio (for emulator) or physical device with Expo Go
-- Xcode (Mac only, for iOS)
 
 ### Quick Start
 
 ```bash
 # Clone the repository
-git clone <repo-url>
-cd "moodle lms frontend/mobile"
+git clone https://github.com/shashankh3/moodle-lms-android.git
+cd moodle-lms-android/mobile
 
 # Install dependencies
 npm install
@@ -546,7 +578,6 @@ npx expo start
 # Open on device:
 # - Scan QR with Expo Go app
 # - Press 'a' for Android emulator
-# - Press 'i' for iOS simulator (Mac only)
 ```
 
 Use your Moodle username and password from `https://mh.unilearn.org.in` to log in.
