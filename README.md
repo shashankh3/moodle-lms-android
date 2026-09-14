@@ -6,7 +6,7 @@
 [![Expo](https://img.shields.io/badge/Expo_SDK-57.0.22-000020?style=for-the-badge&logo=expo&logoColor=white)](https://expo.dev)
 [![React](https://img.shields.io/badge/React-19.2.3-61DAFB?style=for-the-badge&logo=react&logoColor=white)](https://react.dev)
 [![Moodle](https://img.shields.io/badge/Moodle_REST_API-4.x-F98012?style=for-the-badge&logo=moodle&logoColor=white)](https://moodle.org)
-[![Platform](https://img.shields.io/badge/Platform-Android_%7C_iOS_%7C_Web-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/shashankh3/moodle-lms-android)
+[![Platform](https://img.shields.io/badge/Platform-Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/shashankh3/moodle-lms-android)
 [![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
 
 <br/>
@@ -234,7 +234,7 @@ The application interfaces directly with Moodle's built-in Web Services (`/webse
 ### Prerequisites
 - **Node.js**: `v18.x` or `v20.x` (LTS recommended)
 - **npm** or **yarn**
-- **Expo Go App**: Installed on your physical Android or iOS device (download from Google Play Store or Apple App Store)
+- **Expo Go App**: Installed on your physical Android device (download from Google Play Store)
 - **Git**
 
 ### Installation
