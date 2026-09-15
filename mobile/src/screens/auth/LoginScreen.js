@@ -374,11 +374,14 @@ export default function LoginScreen({ navigation }) {
             </View>
           </View>
 
-          {/* Deep Blue Footer: UNICEF & UN OICT */}
+          {/* Deep Blue Footer: UNICEF & UNOV */}
           <View style={styles.footer}>
-            {/* Logos Banner matching official UNICEF & UN OICT banner */}
+            {/* Logos Banner matching official UNICEF & UNOV banner */}
             <View style={styles.footerBannerWrapper}>
-              <UnicefUnBanner />
+              <UnicefUnBanner
+                onOpenUnicef={() => openInAppBrowser('https://www.unicef.org/', 'UNICEF')}
+                onOpenUnov={() => openInAppBrowser('https://www.unov.org/', 'UNOV - United Nations Office at Vienna')}
+              />
             </View>
 
             {/* Copyright & Links */}
