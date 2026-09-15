@@ -8,6 +8,7 @@ import {
   Alert,
   StatusBar,
   Platform,
+  Linking,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import * as ScreenOrientation from 'expo-screen-orientation';
@@ -15,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../context/ThemeContext';
 import { MobileAPI } from '../../services/apiAdapter';
+import { generateYouTubePlayerHtml } from './CourseContentViewerScreen';
 import {
   ArrowLeft,
   ArrowRight,
@@ -199,67 +201,19 @@ export default function LessonPlayerScreen({ route, navigation }) {
 
       // If there is ONLY a video (no text), make it full screen exactly like CourseContentViewerScreen
       if (!hasText) {
-        return `
-          <!DOCTYPE html>
-          <html>
-            <head>
-              <meta charset="utf-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-              <style>
-                * { margin: 0; padding: 0; box-sizing: border-box; }
-                html, body {
-                  width: 100%;
-                  height: 100%;
-                  background-color: #000;
-                  overflow: hidden;
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                }
-                .video-wrapper {
-                  position: relative;
-                  width: 100%;
-                  height: 100%;
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  background: #000;
-                }
-                iframe {
-                  position: absolute;
-                  top: 0;
-                  left: 0;
-                  width: 100%;
-                  height: 100%;
-                  border: 0;
-                }
-              </style>
-            </head>
-            <body>
-              <div class="video-wrapper">
-                <iframe
-                  id="ytplayer"
-                  type="text/html"
-                  src="https://www.youtube.com/embed/${youtubeId}?autoplay=1&playsinline=1&enablejsapi=1&rel=0&modestbranding=1&origin=https://mh.unilearn.org.in&widget_referrer=https://mh.unilearn.org.in"
-                  frameborder="0"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
-                  allowfullscreen
-                ></iframe>
-              </div>
-            </body>
-          </html>
-        `;
+        return generateYouTubePlayerHtml(youtubeId, theme.isDark);
       }
 
       // If there is text alongside the video, use a 16:9 edge-to-edge block at the top
       mediaBlock = `
         <div style="width: 100%; background: #000; position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden;">
           <iframe 
-            src="https://www.youtube.com/embed/${youtubeId}?rel=0&autoplay=0&playsinline=1&modestbranding=1&enablejsapi=1&origin=https://mh.unilearn.org.in&widget_referrer=https://mh.unilearn.org.in" 
+            src="https://www.youtube-nocookie.com/embed/${youtubeId}?rel=0&autoplay=0&playsinline=1&modestbranding=1" 
             title="Video Lesson" 
             frameborder="0" 
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" 
             allowfullscreen 
+            referrerpolicy="strict-origin-when-cross-origin"
             style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0;"
           ></iframe>
         </div>
@@ -391,6 +345,22 @@ export default function LessonPlayerScreen({ route, navigation }) {
             domStorageEnabled={true}
             allowsInlineMediaPlayback={true}
             mediaPlaybackRequiresUserAction={false}
+            onMessage={(e) => {
+              try {
+                const data = JSON.parse(e.nativeEvent.data);
+                if (data.type === 'OPEN_YOUTUBE') {
+                  const vid = data.videoId || extractYouTubeId(currentPageData?.page?.contents);
+                  if (vid) {
+                    const appUrl = `vnd.youtube:${vid}`;
+                    const webUrl = `https://www.youtube.com/watch?v=${vid}`;
+                    Linking.canOpenURL(appUrl).then(can => {
+                      if (can) Linking.openURL(appUrl);
+                      else Linking.openURL(webUrl);
+                    }).catch(() => Linking.openURL(webUrl));
+                  }
+                }
+              } catch(err) {}
+            }}
           />
         )}
       </View>

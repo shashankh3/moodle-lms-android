@@ -96,13 +96,13 @@ export const AuthService = {
       };
       await this.setStoredItem(STORAGE_KEYS.ACTIVE_USER, userProfile);
 
-      // Pre-warm autologin key
-      if (res.privatetoken) {
+      // Pre-warm autologin key for non-admins
+      if (res.privatetoken && !siteInfo.userissiteadmin) {
         setTimeout(async () => {
           try {
             const autoClient = new MoodleClient(cleanUrl, res.token);
             const autoRes = await autoClient.getAutoLoginKey(res.privatetoken);
-            if (autoRes && autoRes.key && autoRes.autologinurl) {
+            if (autoRes && autoRes.key && autoRes.autologinurl && !autoRes.error && !autoRes.errorcode) {
               const warmCache = {
                 key: autoRes.key,
                 autologinurl: autoRes.autologinurl,

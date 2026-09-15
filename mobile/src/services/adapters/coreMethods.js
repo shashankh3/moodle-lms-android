@@ -95,6 +95,25 @@ export const coreMethods = {
         fullTargetUrl = `${cleanBase}${targetUrl}`;
       }
 
+      // Check if current user is site admin (Moodle forbids autologin.php for site admins for security reasons)
+      const user = await getFromStorage(STORAGE_KEYS.ACTIVE_USER);
+      const siteInfo = await getFromStorage(STORAGE_KEYS.SITE_INFO);
+      const isSiteAdmin = !!(
+        siteInfo?.userissiteadmin ||
+        user?.role === 'admin' ||
+        user?.isSiteAdmin ||
+        user?.userissiteadmin
+      );
+
+      if (isSiteAdmin) {
+        // For site admins, never route through autologin.php — return direct target URL (with token for pluginfile if applicable)
+        if (fullTargetUrl.includes('pluginfile.php') && !fullTargetUrl.includes('token=')) {
+          const sep = fullTargetUrl.includes('?') ? '&' : '?';
+          return `${fullTargetUrl}${sep}token=${cfg.token}`;
+        }
+        return fullTargetUrl;
+      }
+
       if (cfg.privatetoken) {
         // Load from AsyncStorage on first call
         await this._loadAutoLoginCache();
@@ -111,9 +130,7 @@ export const coreMethods = {
           try {
             const client = new MoodleClient(cfg.serverUrl, cfg.token);
             const res = await client.getAutoLoginKey(cfg.privatetoken);
-            if (res && res.key && res.autologinurl) {
-              const user = await getFromStorage(STORAGE_KEYS.ACTIVE_USER);
-              const siteInfo = await getFromStorage(STORAGE_KEYS.SITE_INFO);
+            if (res && res.key && res.autologinurl && !res.error && !res.errorcode) {
               const newCache = {
                 key: res.key,
                 autologinurl: res.autologinurl,
@@ -127,8 +144,8 @@ export const coreMethods = {
             }
           } catch (autoLoginErr) {
             console.warn('AutoLogin generation note:', autoLoginErr.message);
-            // Rate-limited — use stale cached key as fallback (Moodle still honours it)
-            if (this._autoLoginCache) {
+            // Rate-limited — use stale cached key as fallback if valid
+            if (this._autoLoginCache && !this._autoLoginCache.error) {
               console.log('[AutoLogin] Using stale cached key as rate-limit fallback');
               autoLoginData = this._autoLoginCache;
             }

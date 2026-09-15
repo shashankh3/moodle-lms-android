@@ -232,10 +232,8 @@ export default function CourseDetailScreen({ route, navigation }) {
       navigation.navigate('ForumScreen', { forumId: mod.forumId || mod.instance, courseId: effectiveCourseId });
     } else if (mod.modname === 'lesson' && (mod.lessonId || mod.instance)) {
       navigation.navigate('LessonPlayer', { module: mod, courseId: effectiveCourseId, courseName: effectiveCourseName });
-    } else if (mod.modname === 'scorm') {
-      navigation.navigate('ScormPlayer', { module: mod, courseId: effectiveCourseId });
     } else {
-      // Route other learning modules to CourseContentViewer
+      // Route SCORM, Video, Page, URL, Book, Resource, PDF, and Certificate to CourseContentViewer
       navigation.navigate('CourseContentViewer', {
         module: { ...mod, courseId: effectiveCourseId },
         courseId: effectiveCourseId,

@@ -15,7 +15,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Platform,
-  ActivityIndicator, Modal, FlatList, StatusBar,
+  ActivityIndicator, Modal, FlatList, StatusBar, Linking,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { useTheme } from '../../context/ThemeContext';
@@ -23,11 +23,12 @@ import { useAuth } from '../../context/AuthContext';
 import { MobileAPI } from '../../services/apiAdapter';
 import { ScormService } from '../../services/scorm/ScormService';
 import { ScormDataModel12 } from '../../services/scorm/ScormDataModel12';
+import { extractYouTubeId, generateYouTubePlayerHtml } from './CourseContentViewerScreen';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import {
   ArrowLeft, List, ChevronLeft, ChevronRight,
-  CheckCircle, RotateCw, X, AlertCircle, Maximize, Minimize,
+  CheckCircle, RotateCw, X, AlertCircle, Maximize, Minimize, Play,
 } from 'lucide-react-native';
 
 export default function ScormPlayerScreen({ route, navigation }) {
@@ -61,6 +62,26 @@ export default function ScormPlayerScreen({ route, navigation }) {
     setErrorMsg(null);
     setCurrentScoIdx(scoIdx);
 
+    // 0. Check YouTube video first
+    const ytId = extractYouTubeId(
+      sco?.launch ||
+      module?.externalurl ||
+      module?.url ||
+      module?.webUrl ||
+      module?.intro ||
+      module?.description ||
+      module?.contentHtml ||
+      scorm?.intro
+    );
+
+    if (ytId) {
+      setScormHtml(generateYouTubePlayerHtml(ytId, isDark));
+      setResolvedBaseHref('https://mh.unilearn.org.in');
+      setResolvedUri(null);
+      setLoading(false);
+      return;
+    }
+
     const contextid = module?.contextid || scorm?.contextid || (module?.id ? (31 + parseInt(module.id, 10)) : 33);
     const launchUrl = module?.scormLaunchUrl || ScormService.getLaunchUrl(scorm, sco, contextid, token, baseUrl);
     const baseHref  = ScormService.getBaseHref(scorm, contextid, baseUrl);
@@ -87,53 +108,19 @@ export default function ScormPlayerScreen({ route, navigation }) {
         }
       },
     });
-    setDataModel(model);
+    // Generate and render the standalone in-app interactive SCORM player
+    const standaloneHtml = ScormService.generateStandaloneScormPlayerHtml({
+      title: sco?.title || title,
+      description: module?.description || scorm?.intro || '',
+      contentHtml: module?.contentHtml || '',
+      isDark,
+      bridgeScript: model.generateBridgeScript(),
+      courseName: module?.courseName || 'Course',
+    });
 
-    // 1. Try pre-fetching Storyline HTML and injecting base href + bridge
-    let html = null;
-    try {
-      html = await ScormService.fetchAndPrepareHtml(
-        launchUrl,
-        baseHref,
-        model.generateBridgeScript()
-      );
-    } catch (e) {
-      console.log('[ScormPlayer] fetchAndPrepareHtml note:', e.message);
-    }
-
-    if (html && html.length > 50) {
-      console.log('[ScormPlayer] Loaded via in-app pre-fetched HTML');
-      setScormHtml(html);
-      setResolvedBaseHref(baseHref);
-      setResolvedUri(null);
-    } else {
-      // 2. Fallback: Authenticated URL via official Moodle auto-login
-      // Use Moodle's built-in player.php but with display=popup to hide the Moodle website UI
-      const targetScormId = scorm?.id || module?.instance || 2;
-      const playerUrl = `${baseUrl}/mod/scorm/player.php?a=${targetScormId}&scoid=${scoId}&display=popup&mode=normal`;
-      setResolvedPlayerUrl(playerUrl);
-      
-      let directUri = launchUrl;
-      try {
-        const autologinPlayer = await MobileAPI.getAuthenticatedUrl(playerUrl);
-        if (autologinPlayer) {
-          directUri = autologinPlayer;
-          console.log('[ScormPlayer] Loaded via AutoLogin player popup gateway');
-        } else {
-          // Final fallback
-          const autologinView = await MobileAPI.getAuthenticatedUrl(`${baseUrl}/mod/scorm/view.php?id=${module?.id || 2}`);
-          if (autologinView) {
-            directUri = autologinView;
-            console.log('[ScormPlayer] Loaded via AutoLogin view.php gateway');
-          }
-        }
-      } catch (autoErr) {
-        console.log('[ScormPlayer] AutoLogin fallback note:', autoErr.message);
-      }
-      setScormHtml(null);
-      setResolvedBaseHref(baseHref);
-      setResolvedUri(directUri);
-    }
+    setScormHtml(standaloneHtml);
+    setResolvedBaseHref(baseUrl || 'https://mh.unilearn.org.in');
+    setResolvedUri(null);
     setLoading(false);
   };
 
@@ -257,11 +244,47 @@ export default function ScormPlayerScreen({ route, navigation }) {
     await loadSco(scoes[idx], scormObj, userData, idx, client, client.token, client.baseUrl);
   };
 
+  const detectedYtId = extractYouTubeId(
+    module?.externalurl ||
+    module?.url ||
+    module?.webUrl ||
+    module?.intro ||
+    module?.description ||
+    module?.contentHtml ||
+    scormObj?.intro
+  );
+
   // Handle bridge messages from WebView
   const handleMessage = async (event) => {
     try {
       const data = JSON.parse(event.nativeEvent.data);
       console.log('[ScormPlayer Bridge Event]:', data?.type, data?.lessonStatus);
+
+      if (data?.type === 'OPEN_YOUTUBE') {
+        const vid = data.videoId || detectedYtId;
+        if (vid) {
+          const appUrl = `vnd.youtube:${vid}`;
+          const webUrl = `https://www.youtube.com/watch?v=${vid}`;
+          Linking.canOpenURL(appUrl).then(can => {
+            if (can) {
+              Linking.openURL(appUrl);
+            } else {
+              Linking.openURL(webUrl);
+            }
+          }).catch(() => {
+            Linking.openURL(webUrl);
+          });
+        }
+      }
+
+      if (data?.type === 'VIDEO_ENDED') {
+        setCompleted(true);
+        if (module?.id) {
+          MobileAPI.toggleActivityCompletion(courseId || module?.course || 1, module.id, true, currentUser)
+            .catch(e => console.warn('[ScormPlayer] Completion sync note:', e));
+        }
+      }
+
       if (dataModel) {
         await dataModel.handleBridgeEvent(data);
       }
@@ -275,10 +298,6 @@ export default function ScormPlayerScreen({ route, navigation }) {
 
   const webSource = scormHtml
     ? { html: scormHtml, baseUrl: resolvedBaseHref || 'https://mh.unilearn.org.in' }
-    : resolvedUri
-    ? { uri: resolvedUri }
-    : module?.url
-    ? { uri: module.url }
     : null;
 
   return (
@@ -306,6 +325,27 @@ export default function ScormPlayerScreen({ route, navigation }) {
           </View>
 
           <View style={styles.headerRight}>
+            {detectedYtId && (
+              <TouchableOpacity
+                style={[styles.headerBtn, { marginRight: 2, backgroundColor: 'rgba(239, 68, 68, 0.2)' }]}
+                onPress={() => {
+                  const appUrl = `vnd.youtube:${detectedYtId}`;
+                  const webUrl = `https://www.youtube.com/watch?v=${detectedYtId}`;
+                  Linking.canOpenURL(appUrl).then(can => {
+                    if (can) {
+                      Linking.openURL(appUrl);
+                    } else {
+                      Linking.openURL(webUrl);
+                    }
+                  }).catch(() => {
+                    Linking.openURL(webUrl);
+                  });
+                }}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Play size={18} color="#EF4444" fill="#EF4444" />
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               style={styles.headerBtn}
               onPress={() => {
@@ -382,26 +422,20 @@ export default function ScormPlayerScreen({ route, navigation }) {
             injectedJavaScriptBeforeContentLoaded={dataModel?.generateBridgeScript()}
             injectedJavaScript={`
               (function() {
-                var iframe = document.getElementById('scorm_object') || document.getElementById('bofrm') || document.querySelector('iframe.scorm-iframe');
-                if (iframe && iframe.src && window.location.href !== iframe.src) {
-                   window.location.replace(iframe.src);
-                   return;
-                }
                 try {
-                  var hideSelectors = ['header', 'footer', '#page-header', '#nav-drawer', '.navbar', '.header-main', '#page-navbar', '.activity-header'];
+                  var iframe = document.getElementById('scorm_object') || document.getElementById('bofrm') || document.querySelector('iframe');
+                  if (iframe) {
+                    iframe.style.width = '100vw';
+                    iframe.style.height = '100vh';
+                    iframe.style.border = 'none';
+                  }
+                  var hideSelectors = ['#page-header', '#nav-drawer', '.navbar', '.header-main', '#page-navbar', '.activity-header'];
                   hideSelectors.forEach(function(sel) {
                     var el = document.querySelector(sel);
                     if (el) el.style.display = 'none';
                   });
-                  document.body.style.padding = '0'; document.body.style.margin = '0';
-                  var pageWrap = document.getElementById('page-wrapper');
-                  if (pageWrap) { pageWrap.style.paddingTop = '0'; pageWrap.style.margin = '0'; }
-                  var regionMain = document.getElementById('region-main');
-                  if (regionMain) { regionMain.style.padding = '0'; regionMain.style.margin = '0'; regionMain.style.border = 'none'; }
-                  
-                  var style = document.createElement('style');
-                  style.innerHTML = '.cs-bottom-bar, .cs-controls-wrapper, #controls, .controls-group, #playbar { zoom: 1.4 !important; }';
-                  document.head.appendChild(style);
+                  document.body.style.margin = '0';
+                  document.body.style.padding = '0';
                 } catch(e) {}
               })();
               ${dataModel?.generateBridgeScript() || ''}
@@ -417,18 +451,12 @@ export default function ScormPlayerScreen({ route, navigation }) {
               </View>
             )}
             onMessage={handleMessage}
-            onNavigationStateChange={(navState) => {
-              // If Moodle autologin dumps us on the Dashboard (or site home) instead of our intended URL,
-              // forcefully redirect back to the SCORM player URL now that the session is established.
-              if (
-                resolvedPlayerUrl &&
-                (navState.url.endsWith('/my/') || navState.url.endsWith('/my') || navState.url.includes('/my/courses.php') || navState.url.endsWith('/?redirect=0') || navState.url === resolvedPlayerUrl.split('/mod/')[0] + '/') &&
-                !navState.url.includes('autologin') &&
-                !navState.url.includes('player.php')
-              ) {
-                console.log('[ScormPlayer] Redirecting stray dashboard navigation back to playerUrl');
-                webViewRef.current?.injectJavaScript(`window.location.replace('${resolvedPlayerUrl}'); true;`);
+            onShouldStartLoadWithRequest={(request) => {
+              // Block accidental navigation away from the interactive content to web login page
+              if (request.url.includes('/login/') || request.url.includes('/login.php') || request.url.includes('/my/')) {
+                return false;
               }
+              return true;
             }}
             onLoadProgress={({ nativeEvent }) => setLoadProgress(nativeEvent.progress)}
             onLoadStart={() => {

@@ -12,13 +12,13 @@
 const ScormHandler = {
   canViewInApp: () => true,
   getNavigationTarget: (module) => ({
-    screen: 'ScormPlayer',
+    screen: 'CourseContentViewer',
     params: { module },
   }),
   getTypeLabel: () => 'Interactive',
-  getIconName: () => 'maximize-2',
-  getIconColor: () => '#F97316',
-  getIconBg: () => 'rgba(249,115,22,0.13)',
+  getIconName: () => 'play-circle',
+  getIconColor: () => '#00AEEF',
+  getIconBg: () => 'rgba(0,174,239,0.13)',
 };
 
 // Handler for HTML lesson pages
@@ -210,3 +210,10 @@ export function getModuleDisplayMeta(module) {
     bg:      typeof handler.getIconBg    === 'function' ? handler.getIconBg(module)    : 'rgba(100,116,139,0.13)',
   };
 }
+
+export const ModuleResolver = {
+  getHandler: resolveModuleHandler,
+  resolveModuleHandler,
+  getModuleNavigationTarget,
+  getModuleDisplayMeta,
+};

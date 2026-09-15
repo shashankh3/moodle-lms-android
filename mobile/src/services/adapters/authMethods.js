@@ -35,14 +35,14 @@ export const authMethods = {
       };
       await saveToStorage(STORAGE_KEYS.ACTIVE_USER, userProfile);
 
-      // Eagerly warm the autologin key cache after login (non-blocking)
-      // This ensures the key is ready before the user opens a SCORM module
-      if (res.privatetoken) {
+      // Eagerly warm the autologin key cache after login for non-admins (non-blocking)
+      // Moodle forbids autologin keys for site administrators for security reasons
+      if (res.privatetoken && !siteInfo.userissiteadmin) {
         setTimeout(async () => {
           try {
             const autoClient = new MoodleClient(cleanUrl, res.token);
             const autoRes = await autoClient.getAutoLoginKey(res.privatetoken);
-            if (autoRes && autoRes.key && autoRes.autologinurl) {
+            if (autoRes && autoRes.key && autoRes.autologinurl && !autoRes.error && !autoRes.errorcode) {
               const warmCache = {
                 key: autoRes.key,
                 autologinurl: autoRes.autologinurl,
@@ -102,11 +102,11 @@ export const authMethods = {
       };
       await saveToStorage(STORAGE_KEYS.ACTIVE_USER, userProfile);
       
-      if (privatetoken) {
+      if (privatetoken && !siteInfo.userissiteadmin) {
         setTimeout(async () => {
           try {
             const autoRes = await client.getAutoLoginKey(privatetoken);
-            if (autoRes && autoRes.key && autoRes.autologinurl) {
+            if (autoRes && autoRes.key && autoRes.autologinurl && !autoRes.error && !autoRes.errorcode) {
               const warmCache = {
                 key: autoRes.key,
                 autologinurl: autoRes.autologinurl,

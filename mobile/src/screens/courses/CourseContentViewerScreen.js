@@ -138,18 +138,24 @@ function getScormBridgeJs(userId = '2', userName = 'Student') {
 
 export function extractYouTubeId(html) {
   if (!html || typeof html !== 'string') return null;
-  const match = html.match(/(?:youtube(?:-nocookie)?\.com\/(?:embed\/|v\/|watch\?v=|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i);
+  const match = html.match(/(?:youtube(?:-nocookie)?\.com\/(?:embed\/|v\/|watch\?v=|shorts\/|live\/|e\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i);
   return match ? match[1] : null;
 }
 
-function generateYouTubePlayerHtml(youtubeId, isDark = false) {
+export function generateYouTubePlayerHtml(youtubeId, isDark = false) {
   const bg = isDark ? '#090D16' : '#000000';
+  const cardBg = isDark ? '#131D2F' : '#FFFFFF';
+  const textColor = isDark ? '#F1F5F9' : '#0F172A';
+  const textMuted = isDark ? '#94A3B8' : '#64748B';
+
   return `
     <!DOCTYPE html>
     <html>
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+        <meta name="referrer" content="strict-origin-when-cross-origin">
+        <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
           html, body {
@@ -160,6 +166,7 @@ function generateYouTubePlayerHtml(youtubeId, isDark = false) {
             display: flex;
             align-items: center;
             justify-content: center;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           }
           .video-wrapper {
             position: relative;
@@ -170,7 +177,7 @@ function generateYouTubePlayerHtml(youtubeId, isDark = false) {
             justify-content: center;
             background: #000;
           }
-          iframe {
+          #player, iframe {
             position: absolute;
             top: 0;
             left: 0;
@@ -178,19 +185,222 @@ function generateYouTubePlayerHtml(youtubeId, isDark = false) {
             height: 100%;
             border: 0;
           }
+          .error-fallback {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            text-align: center;
+            color: #FFFFFF;
+            background: ${bg};
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 99;
+          }
+          .error-fallback.show {
+            display: flex;
+          }
+          .error-card {
+            background: ${cardBg};
+            border-radius: 16px;
+            padding: 24px;
+            max-width: 320px;
+            width: 90%;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+          }
+          .error-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: ${textColor};
+            margin-top: 10px;
+            margin-bottom: 6px;
+          }
+          .error-desc {
+            font-size: 13px;
+            color: ${textMuted};
+            line-height: 1.45;
+            margin-bottom: 16px;
+          }
+          .yt-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: #FF0000;
+            color: #FFFFFF;
+            padding: 12px 24px;
+            border-radius: 24px;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 14px;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 4px 14px rgba(255, 0, 0, 0.4);
+            transition: opacity 0.2s;
+          }
+          .yt-btn:active {
+            opacity: 0.85;
+          }
+          .floating-yt-pill {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            z-index: 20;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #FFFFFF;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+          }
+          .floating-yt-pill:active {
+            background: rgba(255, 0, 0, 0.9);
+          }
         </style>
       </head>
       <body>
         <div class="video-wrapper">
-          <iframe
-            id="ytplayer"
-            type="text/html"
-            src="https://www.youtube.com/embed/${youtubeId}?autoplay=1&playsinline=1&enablejsapi=1&rel=0&modestbranding=1&origin=https://mh.unilearn.org.in&widget_referrer=https://mh.unilearn.org.in"
-            frameborder="0"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
-            allowfullscreen
-          ></iframe>
+          <div id="player"></div>
+          
+          <div class="floating-yt-pill" onclick="openYouTube()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="#FF0000">
+              <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+            </svg>
+            Open App
+          </div>
+
+          <div id="errorBox" class="error-fallback">
+            <div class="error-card">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="#FF0000">
+                <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+              </svg>
+              <div class="error-title">Watch on YouTube</div>
+              <div class="error-desc">This video can be watched directly on YouTube. Tap below to play.</div>
+              <button class="yt-btn" onclick="openYouTube()">
+                ▶ Open in YouTube
+              </button>
+            </div>
+          </div>
         </div>
+
+        <script>
+          var tag = document.createElement('script');
+          tag.src = "https://www.youtube.com/iframe_api";
+          var firstScriptTag = document.getElementsByTagName('script')[0];
+          firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+          var player;
+          var embedRetried = false;
+          var EMBED_ERRORS = [101, 150, 153];
+
+          // RN WebViews loading HTML strings can report origin "null"/"file://" —
+          // passing that as origin makes YouTube reject the embed with error 153.
+          // Only trust real https origins, otherwise fall back to the LMS origin.
+          var safeOrigin = (window.location && typeof window.location.origin === 'string' && window.location.origin.indexOf('https://') === 0)
+            ? window.location.origin
+            : 'https://mh.unilearn.org.in';
+
+          function handleEmbedError(code) {
+            console.log('[YouTube Player Error]:', code);
+            if (EMBED_ERRORS.indexOf(code) !== -1 && !embedRetried) {
+              retryWithNocookieEmbed();
+            } else {
+              showErrorFallback();
+            }
+          }
+
+          // Error 153 / 101 / 150 workaround: re-embed via youtube-nocookie.com
+          // without origin/enablejsapi params, which commonly unblocks WebView playback
+          function retryWithNocookieEmbed() {
+            embedRetried = true;
+            var pDiv = document.getElementById('player');
+            if (pDiv) {
+              pDiv.innerHTML = '<iframe src="https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&playsinline=1&rel=0&modestbranding=1" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>';
+            }
+          }
+
+          function onYouTubeIframeAPIReady() {
+            player = new YT.Player('player', {
+              videoId: '${youtubeId}',
+              host: 'https://www.youtube.com',
+              playerVars: {
+                autoplay: 1,
+                playsinline: 1,
+                rel: 0,
+                modestbranding: 1,
+                enablejsapi: 1,
+                origin: safeOrigin,
+                widget_referrer: safeOrigin
+              },
+              events: {
+                'onReady': onPlayerReady,
+                'onError': onPlayerError,
+                'onStateChange': onPlayerStateChange
+              }
+            });
+          }
+
+          function onPlayerReady(event) {
+            try { event.target.playVideo(); } catch(e) {}
+          }
+
+          function onPlayerStateChange(event) {
+            if (event.data === YT.PlayerState.ENDED) {
+              if (window.ReactNativeWebView) {
+                window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'VIDEO_ENDED', videoId: '${youtubeId}' }));
+              }
+            }
+          }
+
+          function showErrorFallback() {
+            var box = document.getElementById('errorBox');
+            if (box) box.classList.add('show');
+          }
+
+          function onPlayerError(event) {
+            handleEmbedError(event.data);
+          }
+
+          window.addEventListener('message', function(event) {
+            try {
+              var data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+              if (data && (data.event === 'onError' || (data.info && (typeof data.info === 'number' || data.info.errorCode || data.info.error)))) {
+                var code = typeof data.info === 'number' ? data.info : (data.info && (data.info.errorCode || data.info.error)) || data.event;
+                handleEmbedError(code);
+              }
+            } catch(e) {}
+          });
+
+          function openYouTube() {
+            if (window.ReactNativeWebView) {
+              window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'OPEN_YOUTUBE', videoId: '${youtubeId}' }));
+            } else {
+              window.open('https://www.youtube.com/watch?v=${youtubeId}', '_blank');
+            }
+          }
+
+          // Direct iframe fallback if API is slow
+          setTimeout(function() {
+            if (!player || typeof player.getPlayerState !== 'function') {
+              var pDiv = document.getElementById('player');
+              if (pDiv && !pDiv.innerHTML) {
+                pDiv.innerHTML = '<iframe id="ytframe" src="https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&playsinline=1&rel=0&modestbranding=1" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>';
+              }
+            }
+          }, 2000);
+        </script>
       </body>
     </html>
   `;
@@ -387,11 +597,12 @@ function generateMobileHtml(
       <div class="media-container" style="margin-bottom: 20px;">
         <div style="position: relative; width: 100%; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 14px; background: #000; box-shadow: 0 6px 24px rgba(0,0,0,0.3);">
           <iframe 
-            src="https://www.youtube.com/embed/${youtubeId}?rel=0&autoplay=0&playsinline=1&modestbranding=1&enablejsapi=1&origin=https://mh.unilearn.org.in&widget_referrer=https://mh.unilearn.org.in" 
+            src="https://www.youtube-nocookie.com/embed/${youtubeId}?rel=0&autoplay=0&playsinline=1&modestbranding=1&enablejsapi=1&origin=https://mh.unilearn.org.in&widget_referrer=https://mh.unilearn.org.in" 
             title="Video Lesson" 
             frameborder="0" 
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" 
             allowfullscreen 
+            referrerpolicy="strict-origin-when-cross-origin"
             style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; border-radius: 14px;"
           ></iframe>
         </div>
@@ -430,6 +641,8 @@ function generateMobileHtml(
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes">
+        <meta name="referrer" content="strict-origin-when-cross-origin">
+        <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
         <style>
           * { box-sizing: border-box; }
           body {
@@ -955,7 +1168,22 @@ export default function CourseContentViewerScreen({ route, navigation }) {
         const token = client?.token || '';
         setMoodleToken(token);
 
-        // 0. Certificate Module
+        // 0. Check YouTube video first
+        const directYtId = extractYouTubeId(
+          module?.externalurl ||
+          module?.url ||
+          module?.webUrl ||
+          module?.fileUrl ||
+          module?.intro ||
+          module?.description ||
+          module?.contentHtml
+        );
+        if (directYtId) {
+          setLoading(false);
+          return;
+        }
+
+        // 0B. Certificate Module
         if (isCertModule) {
           setLoading(false);
           return;
@@ -975,25 +1203,31 @@ export default function CourseContentViewerScreen({ route, navigation }) {
           }
         }
 
-        // 2. SCORM Module — Resolve authenticated in-app view URL and overview HTML
+        // 2. SCORM Module / Interactive Activity — Load content & check for embedded video
         if (module?.modname === 'scorm') {
-          const targetViewUrl = `${client.baseUrl}/mod/scorm/view.php?id=${module.id || 2}`;
-          let authUrl = targetViewUrl;
-          try {
-            const autologin = await MobileAPI.getAuthenticatedUrl(targetViewUrl);
-            if (autologin) authUrl = autologin;
-          } catch (e) {}
-          setResolvedUrl(authUrl);
+          setResolvedUrl(null);
 
-          // Prepare overview HTML
-          const rawDesc = module?.contentHtml || module?.description || module?.intro ||
-            `<div style="text-align: center; padding: 20px;">
-               <h3 style="color: #004F7A;">${title}</h3>
-               <p style="color: #64748B;">हे परस्परसंवादी शिक्षण मॉड्यूल (Interactive SCORM) सुरू करण्यासाठी खालील प्ले बटण दाबा.</p>
-             </div>`;
+          let scormIntro = '';
+          if (client && (courseId || module?.course)) {
+            try {
+              const targetCourseId = courseId || module?.course || module?.courseId || 1;
+              const scormsRes = await client.getScormsByCourses([targetCourseId]);
+              const foundS = (scormsRes?.scorms || []).find(
+                s => s.coursemodule === module.id || s.id === module.instance
+              );
+              if (foundS?.intro) {
+                scormIntro = foundS.intro;
+              }
+            } catch (scormErr) {
+              console.log('getScormsByCourses note:', scormErr);
+            }
+          }
 
-          const fixed = fixMoodleHtmlContent(rawDesc, token, client.baseUrl);
-          setFetchedHtml(fixed);
+          const rawDesc = module?.contentHtml || scormIntro || module?.description || module?.intro || '';
+          if (rawDesc) {
+            const fixed = fixMoodleHtmlContent(rawDesc, token, client?.baseUrl || 'https://mh.unilearn.org.in');
+            setFetchedHtml(fixed);
+          }
           setLoading(false);
           return;
         }
@@ -1132,6 +1366,31 @@ export default function CourseContentViewerScreen({ route, navigation }) {
       const data = JSON.parse(event.nativeEvent.data);
       console.log('[SCORM In-App Event]:', data.type, data.lessonStatus, data.score);
 
+      if (data.type === 'OPEN_YOUTUBE') {
+        const vid = data.videoId || currentYtId;
+        if (vid) {
+          const appUrl = `vnd.youtube:${vid}`;
+          const webUrl = `https://www.youtube.com/watch?v=${vid}`;
+          Linking.canOpenURL(appUrl).then(can => {
+            if (can) {
+              Linking.openURL(appUrl);
+            } else {
+              Linking.openURL(webUrl);
+            }
+          }).catch(() => {
+            Linking.openURL(webUrl);
+          });
+        }
+      }
+
+      if (data.type === 'VIDEO_ENDED') {
+        setScormCompleted(true);
+        if (module?.id) {
+          MobileAPI.toggleActivityCompletion(courseId, module.id, true, currentUser)
+            .catch(err => console.warn('[Viewer] Video complete sync note:', err));
+        }
+      }
+
       if (data.type === 'SCORM_COMMIT' || data.type === 'SCORM_FINISH' || data.type === 'SCORM_SET_VALUE') {
         const status = data.lessonStatus || data.cmi?.['cmi.core.lesson_status'];
         const score = data.score || data.cmi?.['cmi.core.score.raw'];
@@ -1155,8 +1414,35 @@ export default function CourseContentViewerScreen({ route, navigation }) {
     }
   };
 
+  const currentYtId = extractYouTubeId(
+    module?.externalurl ||
+    module?.url ||
+    module?.webUrl ||
+    module?.intro ||
+    module?.description ||
+    module?.contentHtml ||
+    fetchedHtml
+  );
+
   const renderSource = () => {
-    // 0. Official Moodle Customcert (Matches Screenshot 1 & Screenshot 2)
+    // 0. YouTube Direct In-App Video Player (Priority #1 — exactly matches other video courses)
+    const ytId = extractYouTubeId(
+      module?.externalurl ||
+      module?.url ||
+      module?.webUrl ||
+      module?.intro ||
+      module?.description ||
+      module?.contentHtml ||
+      fetchedHtml
+    );
+    if (ytId) {
+      return {
+        html: generateYouTubePlayerHtml(ytId, isDark),
+        baseUrl: 'https://mh.unilearn.org.in',
+      };
+    }
+
+    // 1. Official Moodle Customcert (Matches Screenshot 1 & Screenshot 2)
     if (isCertModule) {
       const compTime = module?.completiondata?.timecompleted
         ? new Date(module.completiondata.timecompleted * 1000)
@@ -1189,47 +1475,12 @@ export default function CourseContentViewerScreen({ route, navigation }) {
       };
     }
 
-    // 0B. Resolved Server Document / Embed URL (Google Docs PDF Viewer, etc.)
-    if (resolvedUrl) {
+    // 2. Resolved Server Document / Embed URL (Google Docs PDF Viewer, etc.)
+    if (resolvedUrl && module?.modname !== 'scorm') {
       return { uri: resolvedUrl };
     }
 
-    // 1. SCORM Interactive In-App Player (100% local in-app HTML5 canvas)
-    if (module?.modname === 'scorm') {
-      if (isScormPlaying) {
-        return {
-          html: generateScormPlayerHtml({
-            title,
-            description: module?.description,
-            contentHtml: fetchedHtml || module?.contentHtml,
-            isDark,
-            userId: currentUser?.id || '2',
-            userName: currentUser?.fullname || 'Student',
-            courseName,
-          }),
-        };
-      }
-      // SCORM Overview mode (shown before tapping Play)
-      const overviewText = module?.description || fetchedHtml || module?.contentHtml ||
-        'हे परस्परसंवादी शिक्षण मॉड्यूल (Interactive SCORM) सुरू करण्यासाठी वरील प्ले बटण दाबा.';
-      return {
-        html: generateMobileHtml(
-          `<h3 style="color: #00AEEF; margin-bottom: 12px;">${title}</h3><p>${overviewText}</p>`,
-          isDark
-        ),
-      };
-    }
-
-    // 1. YouTube Direct In-App Video Player (Uses origin + baseUrl to prevent Error 150/153)
-    const ytId = extractYouTubeId(fetchedHtml || module?.contentHtml || module?.description || module?.intro || module?.url || module?.webUrl);
-    if (ytId) {
-      return {
-        html: generateYouTubePlayerHtml(ytId, isDark),
-        baseUrl: 'https://mh.unilearn.org.in',
-      };
-    }
-
-    // 2. Direct Native Media Player (Video / Audio / Image)
+    // 3. Direct Native Media Player (Video / Audio / Image)
     if (directMediaUrl) {
       return {
         html: generateMobileHtml(
@@ -1243,7 +1494,22 @@ export default function CourseContentViewerScreen({ route, navigation }) {
       };
     }
 
-    // 3. Native In-App HTML Page / Lesson / Material
+    // 4. SCORM Interactive In-App Player
+    if (module?.modname === 'scorm') {
+      return {
+        html: generateScormPlayerHtml({
+          title,
+          description: module?.description,
+          contentHtml: fetchedHtml || module?.contentHtml,
+          isDark,
+          userId: currentUser?.id || '2',
+          userName: currentUser?.fullname || 'Student',
+          courseName,
+        }),
+      };
+    }
+
+    // 5. Native In-App HTML Page / Lesson / Material
     const rawContent = fetchedHtml || module?.contentHtml || module?.description;
     if (rawContent) {
       return {
@@ -1252,7 +1518,7 @@ export default function CourseContentViewerScreen({ route, navigation }) {
       };
     }
 
-    // 4. Guaranteed In-App HTML Fallback (Never triggers Web page not available)
+    // 6. Guaranteed In-App HTML Fallback (Never triggers Web page not available)
     return {
       html: generateMobileHtml(
         `<h2>${title}</h2><p>${module?.description || 'हे शिक्षण साहित्य ॲपमध्ये उपलब्ध आहे.'}</p>`,
@@ -1268,24 +1534,13 @@ export default function CourseContentViewerScreen({ route, navigation }) {
 
       {/* Top Native Header */}
       <View style={[styles.topBar, { backgroundColor: theme.headerBg, borderColor: theme.cardBorder }, isLandscape && styles.topBarLandscape]}>
-        {isScormPlaying ? (
-          <TouchableOpacity
-            style={styles.exitPlayerBtn}
-            onPress={() => setIsScormPlaying(false)}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <X size={18} color="#FFFFFF" />
-            <Text style={styles.exitPlayerText}>{t('exit', 'Exit')}</Text>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity
-            style={styles.headerBtn}
-            onPress={() => navigation.goBack()}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <ArrowLeft size={22} color="#FFFFFF" />
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity
+          style={styles.headerBtn}
+          onPress={() => navigation.goBack()}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <ArrowLeft size={22} color="#FFFFFF" />
+        </TouchableOpacity>
 
         <View style={styles.titleContainer}>
           <View style={[styles.badge, { backgroundColor: scormCompleted ? '#22C55E' : theme.badgeBg }]}>
@@ -1299,6 +1554,27 @@ export default function CourseContentViewerScreen({ route, navigation }) {
         </View>
 
         <View style={styles.headerRight}>
+          {currentYtId && (
+            <TouchableOpacity
+              style={[styles.headerBtn, { marginRight: 2, backgroundColor: 'rgba(239, 68, 68, 0.2)' }]}
+              onPress={() => {
+                const appUrl = `vnd.youtube:${currentYtId}`;
+                const webUrl = `https://www.youtube.com/watch?v=${currentYtId}`;
+                Linking.canOpenURL(appUrl).then(can => {
+                  if (can) {
+                    Linking.openURL(appUrl);
+                  } else {
+                    Linking.openURL(webUrl);
+                  }
+                }).catch(() => {
+                  Linking.openURL(webUrl);
+                });
+              }}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Play size={18} color="#EF4444" fill="#EF4444" />
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
             style={styles.headerBtn}
             onPress={() => {
@@ -1327,32 +1603,6 @@ export default function CourseContentViewerScreen({ route, navigation }) {
           )}
         </View>
       </View>
-
-      {/* Interactive SCORM Launch Banner (shown in Overview mode) */}
-      {module?.modname === 'scorm' && !isScormPlaying && (
-        <View style={styles.scormLaunchBanner}>
-          <View style={styles.scormBannerLeft}>
-            <Text style={styles.scormBannerTitle}>{t('interactive_scorm_title', 'Interactive Learning (SCORM)')}</Text>
-            <Text style={styles.scormBannerSubtitle}>
-              {scormCompleted
-                ? `✅ ${t('scorm_completed_sub', 'You have successfully completed this module!')}`
-                : t('scorm_start_sub', 'Tap Play to start this interactive module in-app.')}
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={[styles.playButton, scormCompleted && styles.playButtonCompleted]}
-            onPress={() => {
-              setIsScormPlaying(true);
-            }}
-            activeOpacity={0.85}
-          >
-            <Play size={18} color="#FFFFFF" fill="#FFFFFF" style={{ marginRight: 6 }} />
-            <Text style={styles.playButtonText}>
-              {scormCompleted ? t('replay', 'Replay') : t('play', 'Play')}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
 
       {/* Progress / Loading Bar */}
       {loading && (

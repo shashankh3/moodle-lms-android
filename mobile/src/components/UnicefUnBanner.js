@@ -15,36 +15,37 @@ export default function UnicefUnBanner({ onOpenUnicef, onOpenUnov }) {
 
   return (
     <View style={styles.bannerContainer}>
-      {/* UNICEF Official White Logo */}
-      <TouchableOpacity
-        onPress={handleUnicef}
-        activeOpacity={0.75}
-        style={styles.logoTouch}
-      >
-        <Image
-          source={require('../../assets/unicef-white-logo.svg')}
-          style={styles.unicefLogo}
-          contentFit="contain"
-          transition={200}
-        />
-      </TouchableOpacity>
+      {/* Left Column (UNICEF) - exactly 50% */}
+      <View style={styles.logoColumn}>
+        <TouchableOpacity
+          onPress={handleUnicef}
+          activeOpacity={0.75}
+          style={styles.logoTouch}
+        >
+          <Image
+            source={require('../../assets/unicef-white-logo.svg')}
+            style={styles.unicefLogo}
+            contentFit="contain"
+            transition={200}
+          />
+        </TouchableOpacity>
+      </View>
 
-      {/* Subtle Vertical Divider */}
-      <View style={styles.divider} />
-
-      {/* UNOV (United Nations Office at Vienna) Official HD Logo */}
-      <TouchableOpacity
-        onPress={handleUnov}
-        activeOpacity={0.75}
-        style={styles.logoTouch}
-      >
-        <Image
-          source={require('../../assets/unov-white-logo.svg')}
-          style={styles.unovLogo}
-          contentFit="contain"
-          transition={200}
-        />
-      </TouchableOpacity>
+      {/* Right Column (UNOV) - exactly 50% */}
+      <View style={styles.logoColumn}>
+        <TouchableOpacity
+          onPress={handleUnov}
+          activeOpacity={0.75}
+          style={styles.logoTouch}
+        >
+          <Image
+            source={require('../../assets/unov-white-logo.svg')}
+            style={styles.unovLogo}
+            contentFit="contain"
+            transition={200}
+          />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -55,27 +56,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    gap: 18,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+  },
+  logoColumn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   logoTouch: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 2,
-    paddingHorizontal: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
   },
   unicefLogo: {
-    width: 116,
-    height: 28,
-  },
-  divider: {
-    width: 1,
-    height: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    width: 105,
+    height: 25,
   },
   unovLogo: {
-    width: 172,
-    height: 28,
+    width: 148,
+    height: 24,
   },
 });
