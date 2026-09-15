@@ -1,9 +1,11 @@
-import { STORAGE_KEYS, saveToStorage, getFromStorage, swrFetch, getMoodleMediaUrl, fixMoodleHtmlContent, extractCourseImage } from '../apiAdapter';
+import { STORAGE_KEYS, saveToStorage, getFromStorage, swrFetch, getMoodleMediaUrl, fixMoodleHtmlContent, extractCourseImage } from '../adapterUtils';
 import { MoodleClient, normalizeMoodleUrl } from '../moodleClient';
 
 export const courseMethods = {
     async getCourses(user, forceRefresh = false) {
-    const moodleUserId = user?.id || 2;
+    const activeUser = await getFromStorage(STORAGE_KEYS.ACTIVE_USER);
+    const siteInfo = await this.getSiteInfo();
+    let moodleUserId = Number(user?.id || activeUser?.id || siteInfo?.userid || 0);
     const cacheKey = `moodle_mobile_courses_${moodleUserId}`;
 
     return swrFetch(cacheKey, async () => {
@@ -11,11 +13,20 @@ export const courseMethods = {
       if (!client) return [];
 
       try {
+        if (!moodleUserId) {
+          try {
+            const liveSite = await client.getSiteInfo();
+            if (liveSite?.userid) moodleUserId = Number(liveSite.userid);
+          } catch (siteErr) {}
+        }
+
         let liveCourses = [];
-        try {
-          liveCourses = await client.getUsersCourses(moodleUserId);
-        } catch (err) {
-          console.log('getUsersCourses note:', err);
+        if (moodleUserId > 0) {
+          try {
+            liveCourses = await client.getUsersCourses(moodleUserId);
+          } catch (err) {
+            console.log('getUsersCourses note:', err);
+          }
         }
 
         if (!Array.isArray(liveCourses) || liveCourses.length === 0) {
@@ -32,6 +43,122 @@ export const courseMethods = {
         if (Array.isArray(liveCourses)) {
           // Exclude site frontpage course (id: 1) if other courses exist
           const validCourses = liveCourses.filter((c) => c.id !== 1 || liveCourses.length === 1);
+
+          // Compute real course completion status in parallel for all enrolled courses
+          const courseProgressMap = {};
+          if (moodleUserId > 0 && validCourses.length > 0) {
+            await Promise.allSettled(
+              validCourses.map(async (c) => {
+                // 1. Explicit completion flag from Moodle
+                if (c.completed === true || c.completed === 1) {
+                  courseProgressMap[c.id] = { progress: 100, isCompleted: true };
+                  return;
+                }
+
+                // 2. Check if course detail has already been calculated and cached
+                try {
+                  const cachedDetail = await getFromStorage(`moodle_mobile_course_${c.id}_${moodleUserId}`);
+                  if (cachedDetail && typeof cachedDetail.progress === 'number' && cachedDetail.progress > 0) {
+                    courseProgressMap[c.id] = {
+                      progress: cachedDetail.progress,
+                      isCompleted: cachedDetail.isCompleted || cachedDetail.progress === 100,
+                    };
+                  }
+                } catch (e) {}
+
+                const initialProgress = typeof c.progress === 'number' && c.progress !== null ? Math.round(c.progress) : null;
+
+                try {
+                  const [actRes, crsRes, contentsRes] = await Promise.allSettled([
+                    client.getActivityCompletionStatus(c.id, moodleUserId),
+                    client.getCourseCompletionStatus(c.id, moodleUserId),
+                    client.getCourseContents(c.id),
+                  ]);
+
+                  const actCompletion = actRes.status === 'fulfilled' ? actRes.value : null;
+                  const crsCompletion = crsRes.status === 'fulfilled' ? crsRes.value : null;
+                  const contents = contentsRes.status === 'fulfilled' ? contentsRes.value : null;
+
+                  if (crsCompletion?.completionstatus?.completed) {
+                    courseProgressMap[c.id] = { progress: 100, isCompleted: true };
+                    return;
+                  }
+
+                  if (actCompletion?.statuses && Array.isArray(actCompletion.statuses) && actCompletion.statuses.length > 0) {
+                    const trackable = actCompletion.statuses.filter((st) => st.tracking === undefined || st.tracking > 0);
+                    const itemsToCount = trackable.length > 0 ? trackable : actCompletion.statuses;
+                    const total = itemsToCount.length;
+                    const completed = itemsToCount.filter((st) => st.state >= 1).length;
+
+                    if (total > 0) {
+                      const calculated = Math.round((completed / total) * 100);
+                      courseProgressMap[c.id] = {
+                        progress: Math.min(100, Math.max(0, calculated)),
+                        isCompleted: calculated >= 100,
+                      };
+                      return;
+                    }
+                  }
+
+                  // 3. Check inline module completion from getCourseContents
+                  if (Array.isArray(contents) && contents.length > 0) {
+                    let totalTrackable = 0;
+                    let completedTrackable = 0;
+                    contents.forEach((sec) => {
+                      if (sec.uservisible === false || sec.visible === 0) return;
+                      (sec.modules || []).forEach((m) => {
+                        if (m.uservisible === false || m.visible === 0 || m.modname === 'label') return;
+                        const isTracked = m.completion !== undefined && m.completion > 0;
+                        const isCompleted = !!(m.completiondata && m.completiondata.state >= 1);
+                        if (isTracked || isCompleted) {
+                          totalTrackable++;
+                          if (isCompleted) completedTrackable++;
+                        }
+                      });
+                    });
+
+                    if (totalTrackable > 0) {
+                      const calculated = Math.round((completedTrackable / totalTrackable) * 100);
+                      courseProgressMap[c.id] = {
+                        progress: Math.min(100, Math.max(0, calculated)),
+                        isCompleted: calculated >= 100,
+                      };
+                      return;
+                    }
+                  }
+
+                  if (crsCompletion?.completionstatus?.criteria && Array.isArray(crsCompletion.completionstatus.criteria) && crsCompletion.completionstatus.criteria.length > 0) {
+                    const criteria = crsCompletion.completionstatus.criteria;
+                    const total = criteria.length;
+                    const completed = criteria.filter((crit) => crit.complete === true || crit.status === 'Yes' || crit.status === '1' || crit.status === 1).length;
+                    if (total > 0) {
+                      const calculated = Math.round((completed / total) * 100);
+                      courseProgressMap[c.id] = {
+                        progress: Math.min(100, Math.max(0, calculated)),
+                        isCompleted: calculated >= 100,
+                      };
+                      return;
+                    }
+                  }
+
+                  if (!courseProgressMap[c.id]) {
+                    courseProgressMap[c.id] = {
+                      progress: initialProgress !== null ? initialProgress : 0,
+                      isCompleted: initialProgress === 100,
+                    };
+                  }
+                } catch (completionErr) {
+                  if (!courseProgressMap[c.id]) {
+                    courseProgressMap[c.id] = {
+                      progress: initialProgress !== null ? initialProgress : 0,
+                      isCompleted: initialProgress === 100,
+                    };
+                  }
+                }
+              })
+            );
+          }
+
           return validCourses.map((c) => {
             let instructorName = '';
             let instructorAvatar = null;
@@ -46,6 +173,13 @@ export const courseMethods = {
             }
 
             const imgUrl = extractCourseImage(c, client.token);
+            const completionInfo = courseProgressMap[c.id];
+            let progress = 0;
+            if (completionInfo && typeof completionInfo.progress === 'number') {
+              progress = completionInfo.progress;
+            } else if (typeof c.progress === 'number' && c.progress !== null) {
+              progress = Math.round(c.progress);
+            }
 
             return {
               id: c.id,
@@ -61,7 +195,8 @@ export const courseMethods = {
               instructorAvatar,
               image: imgUrl,
               thumbnail: imgUrl,
-              progress: typeof c.progress === 'number' ? Math.round(c.progress) : 0,
+              progress,
+              isCompleted: completionInfo ? completionInfo.isCompleted : progress === 100,
               enrollmentCount: c.enrolledusercount || 0,
               isEnrolled: true,
               isLive: true,
@@ -448,9 +583,18 @@ export const courseMethods = {
         calculatedProgress = 100;
       } else if (totalTrackable > 0) {
         calculatedProgress = Math.round((completedTrackable / totalTrackable) * 100);
+      } else if (courseCompletionData?.criteria && Array.isArray(courseCompletionData.criteria) && courseCompletionData.criteria.length > 0) {
+        const criteria = courseCompletionData.criteria;
+        const total = criteria.length;
+        const completed = criteria.filter((crit) => crit.complete === true || crit.status === 'Yes' || crit.status === '1' || crit.status === 1).length;
+        if (total > 0) {
+          calculatedProgress = Math.round((completed / total) * 100);
+        }
       }
 
-        return {
+      calculatedProgress = Math.min(100, Math.max(0, calculatedProgress));
+
+        const courseDetailResult = {
           ...(targetCourse || {
             id: numId,
             name: `Course ${numId}`,
@@ -465,6 +609,27 @@ export const courseMethods = {
           sections: mappedSections,
           isLive: true,
         };
+
+        // Asynchronously sync the calculated progress back into cached courses list
+        try {
+          const coursesListCacheKey = `moodle_mobile_courses_${effectiveUserId}`;
+          const cachedCourses = await getFromStorage(coursesListCacheKey);
+          if (Array.isArray(cachedCourses) && cachedCourses.length > 0) {
+            const updatedCourses = cachedCourses.map((c) => {
+              if (c.id === numId) {
+                return {
+                  ...c,
+                  progress: calculatedProgress,
+                  isCompleted: courseDetailResult.isCompleted,
+                };
+              }
+              return c;
+            });
+            await saveToStorage(coursesListCacheKey, updatedCourses);
+          }
+        } catch (syncErr) {}
+
+        return courseDetailResult;
       } catch (e) {
         console.warn('Real Moodle getCourseContents failed:', e);
       }

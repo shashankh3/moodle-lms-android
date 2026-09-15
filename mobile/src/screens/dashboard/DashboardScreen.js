@@ -279,7 +279,7 @@ export default function DashboardScreen({ navigation }) {
                       <View
                         style={[
                           styles.progressBarFill,
-                          { width: `${progress > 0 ? progress : 100}%`, backgroundColor: '#8CB811' },
+                          { width: `${progress}%`, backgroundColor: '#8CB811' },
                         ]}
                       />
                     </View>

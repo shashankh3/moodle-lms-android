@@ -27,24 +27,41 @@ export default function CoursesScreen({ navigation }) {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [refreshing, setRefreshing] = useState(false);
 
-  const fetchCourses = useCallback(async () => {
-    const list = await MobileAPI.getCourses(currentUser);
-    setCourses(list);
+  const fetchCourses = useCallback(async (force = false) => {
+    // 1. Instant load from local cache if not forcing refresh
+    if (!force) {
+      try {
+        const cached = await MobileAPI.getCourses(currentUser, false);
+        if (Array.isArray(cached) && cached.length > 0) {
+          setCourses(cached);
+        }
+      } catch (e) {}
+    }
+
+    // 2. Live network sync to ensure 100% accurate completion percentages
+    try {
+      const fresh = await MobileAPI.getCourses(currentUser, true);
+      if (Array.isArray(fresh) && fresh.length > 0) {
+        setCourses(fresh);
+      }
+    } catch (err) {
+      console.warn('Live courses completion sync note:', err);
+    }
   }, [currentUser]);
 
   useEffect(() => {
-    fetchCourses();
+    fetchCourses(false);
   }, [fetchCourses]);
 
   useFocusEffect(
     useCallback(() => {
-      fetchCourses();
+      fetchCourses(false);
     }, [fetchCourses])
   );
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchCourses();
+    await fetchCourses(true);
     setRefreshing(false);
   };
 
@@ -149,7 +166,7 @@ export default function CoursesScreen({ navigation }) {
           const summary = item.summary || '';
           const category = item.category || item.department || 'Curriculum Module';
           const instructor = item.instructor || '';
-          const progress = item.progress || 0;
+          const progress = Math.min(100, Math.max(0, Math.round(item.progress || 0)));
           const imageUrl = item.image || null;
 
           return (

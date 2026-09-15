@@ -1,4 +1,4 @@
-import { STORAGE_KEYS, saveToStorage, getFromStorage, swrFetch, getMoodleMediaUrl, fixMoodleHtmlContent, extractCourseImage } from '../apiAdapter';
+import { STORAGE_KEYS, saveToStorage, getFromStorage, swrFetch, getMoodleMediaUrl, fixMoodleHtmlContent, extractCourseImage } from '../adapterUtils';
 import { MoodleClient, normalizeMoodleUrl } from '../moodleClient';
 import { storage } from '../storage/SecureStorage';
 
@@ -31,6 +31,10 @@ export const coreMethods = {
 
     async getSiteInfo() {
     return await getFromStorage(STORAGE_KEYS.SITE_INFO);
+  },
+
+    async getActiveUser() {
+    return await getFromStorage(STORAGE_KEYS.ACTIVE_USER);
   },
 
     async testConnection(serverUrl, token) {

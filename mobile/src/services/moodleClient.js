@@ -554,8 +554,30 @@ export class MoodleClient {
   // 6. GRADEBOOK FUNCTIONS
   // ==========================================
 
-  async getUserGradeItems(courseId, userId = 0) {
-    return this.call('gradereport_user_get_grade_items', {
+  async getUserGradeItems(courseId, userId = 0, groupId = 0) {
+    const params = {
+      courseid: courseId,
+      userid: userId,
+    };
+    if (groupId > 0) {
+      params.groupid = groupId;
+    }
+    return this.call('gradereport_user_get_grade_items', params, 'POST');
+  }
+
+  async getUserGradesTable(courseId, userId = 0, groupId = 0) {
+    const params = {
+      courseid: courseId,
+      userid: userId,
+    };
+    if (groupId > 0) {
+      params.groupid = groupId;
+    }
+    return this.call('gradereport_user_get_grades_table', params, 'POST');
+  }
+
+  async getUserCourseGroups(courseId, userId = 0) {
+    return this.call('core_group_get_course_user_groups', {
       courseid: courseId,
       userid: userId,
     }, 'POST');
