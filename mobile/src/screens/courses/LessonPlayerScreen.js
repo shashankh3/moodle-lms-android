@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../context/ThemeContext';
 import { MobileAPI } from '../../services/apiAdapter';
-import { generateYouTubePlayerHtml } from './CourseContentViewerScreen';
+import { generateYouTubePlayerHtml, generateYouTubePlayerBlock } from './CourseContentViewerScreen';
 import {
   ArrowLeft,
   ArrowRight,
@@ -196,28 +196,8 @@ export default function LessonPlayerScreen({ route, navigation }) {
         .replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, '')
         .replace(/<div class="embed-responsive[^>]*>[\s\S]*?<\/div>/gi, '');
 
-      // Check if there is any actual readable text remaining
-      const hasText = cleanHtml.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, '').trim().length > 0;
-
-      // If there is ONLY a video (no text), make it full screen exactly like CourseContentViewerScreen
-      if (!hasText) {
-        return generateYouTubePlayerHtml(youtubeId, theme.isDark);
-      }
-
-      // If there is text alongside the video, use a 16:9 edge-to-edge block at the top
-      mediaBlock = `
-        <div style="width: 100%; background: #000; position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden;">
-          <iframe 
-            src="https://www.youtube-nocookie.com/embed/${youtubeId}?rel=0&autoplay=0&playsinline=1&modestbranding=1" 
-            title="Video Lesson" 
-            frameborder="0" 
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" 
-            allowfullscreen 
-            referrerpolicy="strict-origin-when-cross-origin"
-            style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0;"
-          ></iframe>
-        </div>
-      `;
+      // The user requested the exact same unscrollable fullscreen player as the SCORM course, even for lessons.
+      return generateYouTubePlayerHtml(youtubeId, theme.isDark);
     }
 
     return `
@@ -253,7 +233,7 @@ export default function LessonPlayerScreen({ route, navigation }) {
         </head>
         <body>
           ${mediaBlock}
-          ${cleanHtml ? `<div class="content-pad">${cleanHtml}</div>` : ''}
+          ${cleanHtml ? `<div class="content" style="padding: 16px;">${cleanHtml}</div>` : ''}
         </body>
       </html>
     `;
@@ -346,20 +326,7 @@ export default function LessonPlayerScreen({ route, navigation }) {
             allowsInlineMediaPlayback={true}
             mediaPlaybackRequiresUserAction={false}
             onMessage={(e) => {
-              try {
-                const data = JSON.parse(e.nativeEvent.data);
-                if (data.type === 'OPEN_YOUTUBE') {
-                  const vid = data.videoId || extractYouTubeId(currentPageData?.page?.contents);
-                  if (vid) {
-                    const appUrl = `vnd.youtube:${vid}`;
-                    const webUrl = `https://www.youtube.com/watch?v=${vid}`;
-                    Linking.canOpenURL(appUrl).then(can => {
-                      if (can) Linking.openURL(appUrl);
-                      else Linking.openURL(webUrl);
-                    }).catch(() => Linking.openURL(webUrl));
-                  }
-                }
-              } catch(err) {}
+              // No YouTube bridge needed — player plays inline
             }}
           />
         )}

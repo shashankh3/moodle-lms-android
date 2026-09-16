@@ -14,7 +14,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { 
-  Play, FileText, Download, CheckCircle, Video, Music, Image as ImageIcon, BookOpen, Clock, Activity, MessageSquare, Maximize2, Globe, File, Map, ArrowLeft, MoreVertical, Layout, AlignLeft, Users, Shield, RefreshCw, AlertCircle, ChevronDown, ChevronUp, Share2, Award, Circle, HelpCircle, ExternalLink, X
+  Play, FileText, Download, CheckCircle, Video, Music, Image as ImageIcon, BookOpen, Clock, Activity, MessageSquare, Maximize2, Globe, File, Map, ArrowLeft, MoreVertical, Layout, AlignLeft, Users, Shield, RefreshCw, AlertCircle, ChevronDown, ChevronUp, Share2, Award, Circle, HelpCircle, ExternalLink, X, Lock
 } from 'lucide-react-native';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -224,6 +224,23 @@ export default function CourseDetailScreen({ route, navigation }) {
     const effectiveCourseId = course?.id || courseId;
     const effectiveCourseName = course?.fullname || course?.name || course?.shortname || 'Course';
 
+    const isCert =
+      mod.modname === 'customcert' ||
+      mod.modname === 'certificate' ||
+      mod.modname === 'coursecertificate' ||
+      mod.modname === 'simplecertificate' ||
+      mod.type === 'customcert' ||
+      mod.name?.toLowerCase().includes('certificate') ||
+      mod.name?.includes('प्रमाणपत्र');
+
+    if (mod.isLocked && !isCert) {
+      Alert.alert(
+        'Activity Restricted',
+        mod.availableinfo ? cleanHtmlToText(mod.availableinfo) : 'This activity is restricted. Please complete earlier activities to unlock it.'
+      );
+      return;
+    }
+
     if (mod.modname === 'quiz' && (mod.quizId || mod.instance)) {
       navigation.navigate('QuizPlayer', { quizId: mod.quizId || mod.instance, courseId: effectiveCourseId });
     } else if (mod.modname === 'assign' && (mod.assignId || mod.instance)) {
@@ -329,6 +346,51 @@ export default function CourseDetailScreen({ route, navigation }) {
                   ]}
                 />
               </View>
+
+              {/* Prominent Certificate Button if course has certificate or is completed */}
+              {(() => {
+                const certModule = (course.sections || [])
+                  .flatMap(s => s.modules || [])
+                  .find(m =>
+                    m.modname === 'customcert' ||
+                    m.modname === 'certificate' ||
+                    m.modname === 'coursecertificate' ||
+                    m.modname === 'simplecertificate' ||
+                    m.type === 'customcert' ||
+                    m.name?.toLowerCase().includes('certificate') ||
+                    m.name?.includes('प्रमाणपत्र')
+                  );
+
+                if (certModule) {
+                  return (
+                    <TouchableOpacity
+                      style={[styles.certButton, { backgroundColor: '#059669', marginTop: 14 }]}
+                      onPress={() => handleModuleClick(certModule)}
+                      activeOpacity={0.85}
+                    >
+                      <Award size={18} color="#FFFFFF" />
+                      <Text style={styles.certButtonText}>
+                        {course.progress >= 100 ? 'View Course Certificate' : (certModule.name || 'Course Certificate')}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                }
+
+                if (course.progress >= 100 || course.completed) {
+                  return (
+                    <TouchableOpacity
+                      style={[styles.certButton, { backgroundColor: '#059669', marginTop: 14 }]}
+                      onPress={() => navigation.navigate('Certificates')}
+                      activeOpacity={0.85}
+                    >
+                      <Award size={18} color="#FFFFFF" />
+                      <Text style={styles.certButtonText}>View Certificates</Text>
+                    </TouchableOpacity>
+                  );
+                }
+
+                return null;
+              })()}
             </View>
           </View>
         </View>
@@ -339,7 +401,6 @@ export default function CourseDetailScreen({ route, navigation }) {
         {(() => {
           const visibleSections = (course.sections || []).filter(sec => {
             if (!sec.modules || sec.modules.length === 0) return false;
-            if (sec.section === 0 && (!sec.name || sec.name.trim() === 'General' || sec.name.trim() === '' || sec.name.trim() === 'अभ्यासक्रम परिचय')) return false;
             return true;
           });
           if (visibleSections.length === 0) {
@@ -420,6 +481,14 @@ export default function CourseDetailScreen({ route, navigation }) {
                             <Text style={[styles.moduleDesc, { color: theme.textDim }]} numberOfLines={1}>
                               {cleanHtmlToText(module.description)}
                             </Text>
+                          ) : null}
+                          {module.isLocked ? (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3, gap: 4 }}>
+                              <Lock size={12} color="#EF4444" />
+                              <Text style={{ fontSize: 11, color: '#EF4444', fontWeight: '500' }}>
+                                {module.availableinfo ? cleanHtmlToText(module.availableinfo) : 'Restricted until requirements met'}
+                              </Text>
+                            </View>
                           ) : null}
                           {/* Type badge */}
                           <View style={[styles.typeBadge, { backgroundColor: meta.bg }]}>

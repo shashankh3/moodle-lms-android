@@ -62,17 +62,15 @@ export default function ScormPlayerScreen({ route, navigation }) {
     setErrorMsg(null);
     setCurrentScoIdx(scoIdx);
 
-    // 0. Check YouTube video first
-    const ytId = extractYouTubeId(
-      sco?.launch ||
-      module?.externalurl ||
-      module?.url ||
-      module?.webUrl ||
-      module?.intro ||
-      module?.description ||
-      module?.contentHtml ||
-      scorm?.intro
-    );
+    // 0. Only treat this as a YouTube-only module if the launch URL or explicit
+    //    external URL is a YouTube link. Do NOT check description/contentHtml —
+    //    those may embed YouTube links as supplementary material inside a real SCORM package.
+    const ytId = extractYouTubeId([
+      sco?.launch,
+      module?.externalurl,
+      module?.url,
+      module?.webUrl,
+    ].filter(Boolean).join(' '));
 
     if (ytId) {
       setScormHtml(generateYouTubePlayerHtml(ytId, isDark));
@@ -88,7 +86,7 @@ export default function ScormPlayerScreen({ route, navigation }) {
 
     console.log('[ScormPlayer] Loading SCO:', scoIdx + 1, 'Launch URL:', launchUrl);
 
-    // Build data model for this SCO
+    // Build data model for this SCO (for SCORM 1.2 bridge)
     const scoId = sco?.id || module?.instance || 1;
     const model = new ScormDataModel12({
       scoId,
@@ -108,19 +106,32 @@ export default function ScormPlayerScreen({ route, navigation }) {
         }
       },
     });
-    // Generate and render the standalone in-app interactive SCORM player
-    const standaloneHtml = ScormService.generateStandaloneScormPlayerHtml({
-      title: sco?.title || title,
-      description: module?.description || scorm?.intro || '',
-      contentHtml: module?.contentHtml || '',
-      isDark,
-      bridgeScript: model.generateBridgeScript(),
-      courseName: module?.courseName || 'Course',
-    });
+    setDataModel(model);
 
-    setScormHtml(standaloneHtml);
+    // Launch via Moodle's native interactive web player with AutoLogin authentication
+    const scormId = scorm?.id || module?.instance || 2;
+    let playerUrl = '';
+    if (scormId) {
+      const orgParam = sco?.organization ? `&currentorg=${encodeURIComponent(sco.organization)}` : '';
+      const scoParam = sco?.id ? `&scoid=${sco.id}` : '';
+      playerUrl = `${baseUrl}/mod/scorm/player.php?a=${scormId}${orgParam}${scoParam}&display=popup&mode=normal`;
+    } else if (module?.id) {
+      playerUrl = `${baseUrl}/mod/scorm/player.php?id=${module.id}&display=popup&mode=normal`;
+    } else {
+      playerUrl = `${baseUrl}/mod/scorm/player.php?a=2&scoid=6&display=popup&mode=normal`;
+    }
+
+    let directUri = playerUrl;
+    try {
+      const authed = await MobileAPI.getAuthenticatedUrl(playerUrl);
+      if (authed) directUri = authed;
+    } catch (e) {
+      console.warn('[ScormPlayer] AutoLogin note:', e.message);
+    }
+
+    setScormHtml(null);
+    setResolvedUri(directUri);
     setResolvedBaseHref(baseUrl || 'https://mh.unilearn.org.in');
-    setResolvedUri(null);
     setLoading(false);
   };
 
@@ -244,15 +255,15 @@ export default function ScormPlayerScreen({ route, navigation }) {
     await loadSco(scoes[idx], scormObj, userData, idx, client, client.token, client.baseUrl);
   };
 
-  const detectedYtId = extractYouTubeId(
-    module?.externalurl ||
-    module?.url ||
-    module?.webUrl ||
-    module?.intro ||
-    module?.description ||
-    module?.contentHtml ||
-    scormObj?.intro
-  );
+  const detectedYtId = extractYouTubeId([
+    module?.externalurl,
+    module?.url,
+    module?.webUrl,
+    module?.intro,
+    module?.description,
+    module?.contentHtml,
+    scormObj?.intro,
+  ].filter(Boolean).join(' '));
 
   // Handle bridge messages from WebView
   const handleMessage = async (event) => {
@@ -298,7 +309,9 @@ export default function ScormPlayerScreen({ route, navigation }) {
 
   const webSource = scormHtml
     ? { html: scormHtml, baseUrl: resolvedBaseHref || 'https://mh.unilearn.org.in' }
-    : null;
+    : resolvedUri
+      ? { uri: resolvedUri }
+      : null;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background, paddingBottom: insets.bottom, paddingLeft: insets.left, paddingRight: insets.right }]}>
@@ -325,27 +338,6 @@ export default function ScormPlayerScreen({ route, navigation }) {
           </View>
 
           <View style={styles.headerRight}>
-            {detectedYtId && (
-              <TouchableOpacity
-                style={[styles.headerBtn, { marginRight: 2, backgroundColor: 'rgba(239, 68, 68, 0.2)' }]}
-                onPress={() => {
-                  const appUrl = `vnd.youtube:${detectedYtId}`;
-                  const webUrl = `https://www.youtube.com/watch?v=${detectedYtId}`;
-                  Linking.canOpenURL(appUrl).then(can => {
-                    if (can) {
-                      Linking.openURL(appUrl);
-                    } else {
-                      Linking.openURL(webUrl);
-                    }
-                  }).catch(() => {
-                    Linking.openURL(webUrl);
-                  });
-                }}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Play size={18} color="#EF4444" fill="#EF4444" />
-              </TouchableOpacity>
-            )}
             <TouchableOpacity
               style={styles.headerBtn}
               onPress={() => {
@@ -515,15 +507,8 @@ export default function ScormPlayerScreen({ route, navigation }) {
         </View>
       )}
 
-      {/* Completion overlay toast */}
-      {completed && (
-        <View style={styles.completionToast}>
-          <CheckCircle size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
-          <Text style={styles.completionText}>
-            प्रगती जतन केली! {score ? `Score: ${score}%` : ''}
-          </Text>
-        </View>
-      )}
+
+
 
       {/* Table of Contents Modal */}
       {hasMultiple && (

@@ -171,6 +171,7 @@ const HANDLER_REGISTRY = {
   forum:             ForumHandler,
   customcert:        CertificateHandler,
   certificate:       CertificateHandler,
+  coursecertificate: CertificateHandler,
   simplecertificate: CertificateHandler,
 };
 

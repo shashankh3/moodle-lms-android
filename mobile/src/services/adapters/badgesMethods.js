@@ -275,7 +275,7 @@ export const badgesMethods = {
                         title: m.name || 'Course Certificate',
                         description: m.description || sec.name || 'Official Moodle Course Certificate',
                         course: course.fullname || course.name,
-                        earnedDate: m.completiondata?.state >= 1 ? 'Earned' : 'Available on Completion',
+                        earnedDate: (course.progress === 100 || course.completed || m.completiondata?.state >= 1) ? 'Earned' : 'Available on Completion',
                         isCert: true,
                         url: `${client.baseUrl}/mod/${m.modname}/view.php?id=${m.id}`,
                       });
@@ -283,6 +283,25 @@ export const badgesMethods = {
                   }
                 });
               });
+            }
+
+            // Fallback: If course is 100% complete and no specific certificate activity was detected, show verified course completion credential
+            if (course.progress === 100 || course.completed) {
+              const compKey = `course_comp_${course.id}`;
+              const hasCertForCourse = certificates.some(c => c.course === (course.fullname || course.name));
+              if (!hasCertForCourse && !discoveredIds.has(compKey)) {
+                discoveredIds.add(compKey);
+                certificates.push({
+                  id: compKey,
+                  name: `${course.fullname || course.name} - Certificate of Completion`,
+                  title: `${course.fullname || course.name} - Certificate of Completion`,
+                  description: `Verified completion of ${course.fullname || course.name}`,
+                  course: course.fullname || course.name,
+                  earnedDate: 'Earned (100% Complete)',
+                  isCert: true,
+                  url: `${client.baseUrl}/course/view.php?id=${course.id}`,
+                });
+              }
             }
           } catch (e2) {
             console.log(`Scan course contents for certs (${course.id}) note:`, e2);

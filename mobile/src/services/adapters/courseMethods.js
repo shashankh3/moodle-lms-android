@@ -257,7 +257,7 @@ export const courseMethods = {
 
       // Fetch contents, activity completion, and course module details concurrently
       try {
-        const [contents, actCompletion, crsCompletion, pagesRes, urlsRes, booksRes, resourcesRes, scormsRes, quizzesRes, assignsRes, customCertsRes, simpleCertsRes] = await Promise.all([
+        const [contents, actCompletion, crsCompletion, pagesRes, urlsRes, booksRes, resourcesRes, scormsRes, quizzesRes, assignsRes, customCertsRes, simpleCertsRes, courseCertsRes] = await Promise.all([
           client.getCourseContents(numId).catch((err) => {
             console.warn('getCourseContents error:', err);
             return [];
@@ -279,6 +279,7 @@ export const courseMethods = {
         client.getAssignments([numId]).catch(() => null),
         client.getCustomcertsByCourses([numId]).catch(() => null),
         client.getCertificatesByCourses([numId]).catch(() => null),
+        client.getCoursecertificatesByCourses([numId]).catch(() => null),
       ]);
 
       const pagesList = pagesRes?.pages || [];
@@ -292,6 +293,7 @@ export const courseMethods = {
       const certsList = [];
       if (customCertsRes?.customcerts) certsList.push(...customCertsRes.customcerts.map(c => ({ ...c, modname: 'customcert' })));
       if (simpleCertsRes?.certificates) certsList.push(...simpleCertsRes.certificates.map(c => ({ ...c, modname: 'certificate' })));
+      if (courseCertsRes?.certificates) certsList.push(...courseCertsRes.certificates.map(c => ({ ...c, modname: 'coursecertificate' })));
 
       if (actCompletion && Array.isArray(actCompletion.statuses)) {
         actCompletion.statuses.forEach((st) => {
@@ -311,21 +313,32 @@ export const courseMethods = {
         mappedSections = contents
           .filter(sec => {
             if (sec.uservisible === false || sec.visible === 0) return false;
-            // In Moodle Tiles / Topics format, Section 0 (General) is not a course module section
-            if (sec.section === 0 && (!sec.name || sec.name.trim() === 'General' || sec.name.trim() === '')) return false;
+            // Only hide Section 0 if it has no modules
+            if (sec.section === 0 && (!sec.modules || sec.modules.length === 0)) return false;
             return true;
           })
           .map((sec) => {
             const resolvedName = (sec.name && sec.name.trim().length > 0)
               ? sec.name.trim()
-              : `Section ${sec.section || sec.id}`;
+              : (sec.section === 0 ? 'General / Course Information' : `Section ${sec.section || sec.id}`);
             return {
               id: sec.id,
               name: resolvedName,
               title: resolvedName,
               summary: sec.summary ? sec.summary.replace(/<[^>]*>?/gm, '').trim() : '',
               modules: (sec.modules || [])
-                .filter(m => m.uservisible !== false && m.visible !== 0 && m.modname !== 'label')
+                .filter(m => {
+                  if (m.modname === 'label') return false;
+                  const isCert =
+                    m.modname === 'customcert' ||
+                    m.modname === 'certificate' ||
+                    m.modname === 'coursecertificate' ||
+                    m.modname === 'simplecertificate' ||
+                    m.name?.toLowerCase().includes('certificate') ||
+                    m.name?.includes('प्रमाणपत्र');
+                  if (m.visible === 0 && !isCert) return false;
+                  return true;
+                })
                 .map((m) => {
                 const rawFiles = Array.isArray(m.contents) ? m.contents : [];
                 const files = rawFiles.map((f) => ({
@@ -350,7 +363,7 @@ export const courseMethods = {
                 else if (m.modname === 'page' || m.modname === 'book') type = 'page';
                 else if (m.modname === 'scorm') type = 'scorm';
                 else if (m.modname === 'folder') type = 'folder';
-                else if (m.modname === 'customcert' || m.modname === 'simplecertificate' || m.modname === 'certificate') type = 'customcert';
+                else if (m.modname === 'customcert' || m.modname === 'simplecertificate' || m.modname === 'certificate' || m.modname === 'coursecertificate' || m.name?.toLowerCase().includes('certificate') || m.name?.includes('प्रमाणपत्र')) type = 'customcert';
                 else if (isPdf) type = 'pdf';
                 else if (isVideo) type = 'video';
 
@@ -406,6 +419,9 @@ export const courseMethods = {
                   files,
                   description: m.intro ? m.intro.replace(/<[^>]*>?/gm, '').trim() : (m.description ? m.description.replace(/<[^>]*>?/gm, '').trim() : ''),
                   contentHtml: embeddedContent,
+                  isLocked: m.uservisible === false,
+                  availableinfo: m.availableinfo || null,
+                  uservisible: m.uservisible !== false,
                 };
               }),
             };
@@ -539,14 +555,17 @@ export const courseMethods = {
         // Collect all existing module IDs
         const existingModuleIds = new Set();
         mappedSections.forEach(s => {
-          (s.modules || []).forEach(m => existingModuleIds.add(m.id));
+          (s.modules || []).forEach(m => {
+            if (m.id) existingModuleIds.add(m.id);
+            if (m.instance) existingModuleIds.add(m.instance);
+          });
         });
 
         const missingCerts = [];
         certsList.forEach((c) => {
           const cCmId = c.coursemodule || c.id;
           const actualModName = c.modname || 'customcert';
-          if (!existingModuleIds.has(cCmId)) {
+          if (!existingModuleIds.has(cCmId) && !existingModuleIds.has(c.id)) {
             missingCerts.push({
               id: cCmId,
               instance: c.id,

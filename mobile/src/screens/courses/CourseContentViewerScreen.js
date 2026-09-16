@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import * as ScreenOrientation from 'expo-screen-orientation';
+import * as WebBrowser from 'expo-web-browser';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
@@ -142,11 +143,164 @@ export function extractYouTubeId(html) {
   return match ? match[1] : null;
 }
 
-export function generateYouTubePlayerHtml(youtubeId, isDark = false) {
+export function generateYouTubePlayerBlock(youtubeId, isDark = false, autoplay = true) {
   const bg = isDark ? '#090D16' : '#000000';
   const cardBg = isDark ? '#131D2F' : '#FFFFFF';
   const textColor = isDark ? '#F1F5F9' : '#0F172A';
   const textMuted = isDark ? '#94A3B8' : '#64748B';
+  const autoPlayVal = autoplay ? 1 : 0;
+
+  return `
+    <style>
+      .video-wrapper {
+        position: relative;
+        width: 100%;
+        padding-bottom: 56.25%; /* 16:9 */
+        height: 0;
+        overflow: hidden;
+        background: #000;
+        border-radius: 14px;
+        box-shadow: 0 6px 24px rgba(0,0,0,0.3);
+      }
+      .video-wrapper.fullscreen {
+        padding-bottom: 0;
+        height: 100%;
+        border-radius: 0;
+        box-shadow: none;
+      }
+      .video-wrapper #player, .video-wrapper iframe {
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        border: 0 !important;
+        margin: 0 !important;
+        border-radius: 0 !important;
+      }
+    </style>
+    <div class="video-wrapper" id="yt-wrapper-${youtubeId}">
+      <div id="player-${youtubeId}"></div>
+    </div>
+
+    <script>
+      (function() {
+        var ytId = '${youtubeId}';
+        if (!document.getElementById('yt-iframe-api')) {
+          var tag = document.createElement('script');
+          tag.id = 'yt-iframe-api';
+          tag.src = "https://www.youtube.com/iframe_api";
+          var firstScriptTag = document.getElementsByTagName('script')[0];
+          if (firstScriptTag) {
+            firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+          } else {
+            document.head.appendChild(tag);
+          }
+        }
+
+        var player;
+        var embedRetried = false;
+        var EMBED_ERRORS = [101, 150, 153];
+        var autoPlayVal = ${autoPlayVal};
+
+        var safeOrigin = (window.location && typeof window.location.origin === 'string' && window.location.origin.indexOf('https://') === 0)
+          ? window.location.origin
+          : 'https://mh.unilearn.org.in';
+
+        function handleEmbedError(code) {
+          console.log('[YouTube Player Error]:', code);
+          if (EMBED_ERRORS.indexOf(code) !== -1) {
+            if (!embedRetried) {
+              retryWithNocookieEmbed();
+            }
+            // Ignore duplicate embed error messages if already retried
+          }
+        }
+
+        function retryWithNocookieEmbed() {
+          embedRetried = true;
+          var pDiv = document.getElementById('player-' + ytId);
+          if (pDiv) {
+            pDiv.innerHTML = '<iframe src="https://www.youtube-nocookie.com/embed/' + ytId + '?autoplay=' + autoPlayVal + '&playsinline=1&rel=0&modestbranding=1" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0;"></iframe>';
+          }
+        }
+
+        window.onYouTubeIframeAPIReady = window.onYouTubeIframeAPIReady || function() {};
+        var oldOnReady = window.onYouTubeIframeAPIReady;
+        window.onYouTubeIframeAPIReady = function() {
+          oldOnReady();
+          initPlayer();
+        };
+
+        function initPlayer() {
+          if (typeof YT !== 'undefined' && YT && YT.Player) {
+            player = new YT.Player('player-' + ytId, {
+              videoId: ytId,
+              host: 'https://www.youtube.com',
+              playerVars: {
+                autoplay: autoPlayVal,
+                playsinline: 1,
+                rel: 0,
+                modestbranding: 1,
+                enablejsapi: 1,
+                origin: safeOrigin,
+                widget_referrer: safeOrigin
+              },
+              events: {
+                'onReady': onPlayerReady,
+                'onError': onPlayerError,
+                'onStateChange': onPlayerStateChange
+              }
+            });
+          }
+        }
+
+        function onPlayerReady(event) {
+          if (autoPlayVal === 1) {
+            try { event.target.playVideo(); } catch(e) {}
+          }
+        }
+
+        function onPlayerStateChange(event) {
+          if (event.data === YT.PlayerState.ENDED) {
+            if (window.ReactNativeWebView) {
+              window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'VIDEO_ENDED', videoId: ytId }));
+            }
+          }
+        }
+
+        function onPlayerError(event) {
+          handleEmbedError(event.data);
+        }
+
+        window.addEventListener('message', function(event) {
+          try {
+            var data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+            if (data && (data.event === 'onError' || (data.info && (typeof data.info === 'number' || data.info.errorCode || data.info.error)))) {
+              var code = typeof data.info === 'number' ? data.info : (data.info && (data.info.errorCode || data.info.error)) || data.event;
+              handleEmbedError(code);
+            }
+          } catch(e) {}
+        });
+
+        // Fallback init in case API is already loaded or loads differently
+        setTimeout(function() {
+          if (typeof YT !== 'undefined' && YT && YT.Player && !player) {
+            initPlayer();
+          } else if (!player || typeof player.getPlayerState !== 'function') {
+            var pDiv = document.getElementById('player-' + ytId);
+            if (pDiv && !pDiv.innerHTML) {
+              pDiv.innerHTML = '<iframe id="ytframe-' + ytId + '" src="https://www.youtube-nocookie.com/embed/' + ytId + '?autoplay=' + autoPlayVal + '&playsinline=1&rel=0&modestbranding=1" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0;"></iframe>';
+            }
+          }
+        }, 1500);
+      })();
+    </script>
+  `;
+}
+
+export function generateYouTubePlayerHtml(youtubeId, isDark = false) {
+  const bg = isDark ? '#090D16' : '#000000';
 
   return `
     <!DOCTYPE html>
@@ -168,239 +322,10 @@ export function generateYouTubePlayerHtml(youtubeId, isDark = false) {
             justify-content: center;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           }
-          .video-wrapper {
-            position: relative;
-            width: 100%;
-            height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: #000;
-          }
-          #player, iframe {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            border: 0;
-          }
-          .error-fallback {
-            display: none;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 24px;
-            text-align: center;
-            color: #FFFFFF;
-            background: ${bg};
-            width: 100%;
-            height: 100%;
-            position: absolute;
-            top: 0;
-            left: 0;
-            z-index: 99;
-          }
-          .error-fallback.show {
-            display: flex;
-          }
-          .error-card {
-            background: ${cardBg};
-            border-radius: 16px;
-            padding: 24px;
-            max-width: 320px;
-            width: 90%;
-            box-shadow: 0 8px 30px rgba(0,0,0,0.5);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-          }
-          .error-title {
-            font-size: 16px;
-            font-weight: 700;
-            color: ${textColor};
-            margin-top: 10px;
-            margin-bottom: 6px;
-          }
-          .error-desc {
-            font-size: 13px;
-            color: ${textMuted};
-            line-height: 1.45;
-            margin-bottom: 16px;
-          }
-          .yt-btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            background: #FF0000;
-            color: #FFFFFF;
-            padding: 12px 24px;
-            border-radius: 24px;
-            text-decoration: none;
-            font-weight: 700;
-            font-size: 14px;
-            cursor: pointer;
-            border: none;
-            box-shadow: 0 4px 14px rgba(255, 0, 0, 0.4);
-            transition: opacity 0.2s;
-          }
-          .yt-btn:active {
-            opacity: 0.85;
-          }
-          .floating-yt-pill {
-            position: absolute;
-            top: 12px;
-            right: 12px;
-            z-index: 20;
-            background: rgba(0, 0, 0, 0.75);
-            backdrop-filter: blur(8px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            color: #FFFFFF;
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            cursor: pointer;
-          }
-          .floating-yt-pill:active {
-            background: rgba(255, 0, 0, 0.9);
-          }
         </style>
       </head>
       <body>
-        <div class="video-wrapper">
-          <div id="player"></div>
-          
-          <div class="floating-yt-pill" onclick="openYouTube()">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="#FF0000">
-              <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
-            </svg>
-            Open App
-          </div>
-
-          <div id="errorBox" class="error-fallback">
-            <div class="error-card">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="#FF0000">
-                <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
-              </svg>
-              <div class="error-title">Watch on YouTube</div>
-              <div class="error-desc">This video can be watched directly on YouTube. Tap below to play.</div>
-              <button class="yt-btn" onclick="openYouTube()">
-                ▶ Open in YouTube
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <script>
-          var tag = document.createElement('script');
-          tag.src = "https://www.youtube.com/iframe_api";
-          var firstScriptTag = document.getElementsByTagName('script')[0];
-          firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
-
-          var player;
-          var embedRetried = false;
-          var EMBED_ERRORS = [101, 150, 153];
-
-          // RN WebViews loading HTML strings can report origin "null"/"file://" —
-          // passing that as origin makes YouTube reject the embed with error 153.
-          // Only trust real https origins, otherwise fall back to the LMS origin.
-          var safeOrigin = (window.location && typeof window.location.origin === 'string' && window.location.origin.indexOf('https://') === 0)
-            ? window.location.origin
-            : 'https://mh.unilearn.org.in';
-
-          function handleEmbedError(code) {
-            console.log('[YouTube Player Error]:', code);
-            if (EMBED_ERRORS.indexOf(code) !== -1 && !embedRetried) {
-              retryWithNocookieEmbed();
-            } else {
-              showErrorFallback();
-            }
-          }
-
-          // Error 153 / 101 / 150 workaround: re-embed via youtube-nocookie.com
-          // without origin/enablejsapi params, which commonly unblocks WebView playback
-          function retryWithNocookieEmbed() {
-            embedRetried = true;
-            var pDiv = document.getElementById('player');
-            if (pDiv) {
-              pDiv.innerHTML = '<iframe src="https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&playsinline=1&rel=0&modestbranding=1" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>';
-            }
-          }
-
-          function onYouTubeIframeAPIReady() {
-            player = new YT.Player('player', {
-              videoId: '${youtubeId}',
-              host: 'https://www.youtube.com',
-              playerVars: {
-                autoplay: 1,
-                playsinline: 1,
-                rel: 0,
-                modestbranding: 1,
-                enablejsapi: 1,
-                origin: safeOrigin,
-                widget_referrer: safeOrigin
-              },
-              events: {
-                'onReady': onPlayerReady,
-                'onError': onPlayerError,
-                'onStateChange': onPlayerStateChange
-              }
-            });
-          }
-
-          function onPlayerReady(event) {
-            try { event.target.playVideo(); } catch(e) {}
-          }
-
-          function onPlayerStateChange(event) {
-            if (event.data === YT.PlayerState.ENDED) {
-              if (window.ReactNativeWebView) {
-                window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'VIDEO_ENDED', videoId: '${youtubeId}' }));
-              }
-            }
-          }
-
-          function showErrorFallback() {
-            var box = document.getElementById('errorBox');
-            if (box) box.classList.add('show');
-          }
-
-          function onPlayerError(event) {
-            handleEmbedError(event.data);
-          }
-
-          window.addEventListener('message', function(event) {
-            try {
-              var data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-              if (data && (data.event === 'onError' || (data.info && (typeof data.info === 'number' || data.info.errorCode || data.info.error)))) {
-                var code = typeof data.info === 'number' ? data.info : (data.info && (data.info.errorCode || data.info.error)) || data.event;
-                handleEmbedError(code);
-              }
-            } catch(e) {}
-          });
-
-          function openYouTube() {
-            if (window.ReactNativeWebView) {
-              window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'OPEN_YOUTUBE', videoId: '${youtubeId}' }));
-            } else {
-              window.open('https://www.youtube.com/watch?v=${youtubeId}', '_blank');
-            }
-          }
-
-          // Direct iframe fallback if API is slow
-          setTimeout(function() {
-            if (!player || typeof player.getPlayerState !== 'function') {
-              var pDiv = document.getElementById('player');
-              if (pDiv && !pDiv.innerHTML) {
-                pDiv.innerHTML = '<iframe id="ytframe" src="https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&playsinline=1&rel=0&modestbranding=1" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>';
-              }
-            }
-          }, 2000);
-        </script>
+        ${generateYouTubePlayerBlock(youtubeId, isDark, true).replace('class="video-wrapper"', 'class="video-wrapper fullscreen"')}
       </body>
     </html>
   `;
@@ -524,41 +449,41 @@ function generateOfficialMoodleCertificateHtml({
           }
         </style>
       </head>
-      <body>
-        <!-- State 1: Moodle Activity Card (Screenshot 1) -->
+        <!-- Moodle Activity Card -->
         <div id="overview-view">
           <div class="moodle-card">
             <div class="moodle-header">${courseTitle}</div>
             <div class="moodle-desc">${description}</div>
             <div class="moodle-awarded">Awarded on: ${awardedDateFormatted}</div>
-            <button class="btn-view-cert" onclick="showServerCertificate()">
-              View certificate
-            </button>
+            <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+              <button class="btn-view-cert" onclick="openCertificate()">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px;"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg>
+                View Certificate
+              </button>
+              ${pdfDownloadUrl ? `
+                <button class="btn-view-cert" onclick="openCertificate()" style="background-color: #059669;">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                  Download (PDF)
+                </button>
+              ` : ''}
+            </div>
           </div>
-        </div>
-
-        <!-- State 2: Real Server PDF (Screenshot 2) -->
-        <div id="cert-doc-view">
-          <div class="cert-bar">
-            <button class="btn-back" onclick="hideServerCertificate()">← Back to Activity</button>
-            <span style="font-size: 13px; font-weight: 600;">Official Certificate (PDF)</span>
-            <a href="${pdfDownloadUrl}" target="_blank" style="color: #00AEEF; font-size: 12px; text-decoration: none; font-weight: 700;">Download</a>
-          </div>
-          <iframe id="cert-iframe" src=""></iframe>
         </div>
 
         <script>
-          function showServerCertificate() {
-            var frame = document.getElementById('cert-iframe');
-            if (!frame.src || frame.src === 'about:blank' || frame.src === window.location.href) {
-              frame.src = '${pdfViewerUrl}';
+          function openCertificate() {
+            try {
+              if (window.ReactNativeWebView) {
+                window.ReactNativeWebView.postMessage(JSON.stringify({
+                  type: 'OPEN_CERTIFICATE',
+                  url: '${pdfDownloadUrl}'
+                }));
+              } else if ('${pdfDownloadUrl}') {
+                window.location.href = '${pdfDownloadUrl}';
+              }
+            } catch (e) {
+              console.error(e);
             }
-            document.getElementById('overview-view').style.display = 'none';
-            document.getElementById('cert-doc-view').style.display = 'block';
-          }
-          function hideServerCertificate() {
-            document.getElementById('cert-doc-view').style.display = 'none';
-            document.getElementById('overview-view').style.display = 'flex';
           }
         </script>
       </body>
@@ -594,18 +519,8 @@ function generateMobileHtml(
     `;
   } else if (youtubeId) {
     mediaBlock = `
-      <div class="media-container" style="margin-bottom: 20px;">
-        <div style="position: relative; width: 100%; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 14px; background: #000; box-shadow: 0 6px 24px rgba(0,0,0,0.3);">
-          <iframe 
-            src="https://www.youtube-nocookie.com/embed/${youtubeId}?rel=0&autoplay=0&playsinline=1&modestbranding=1&enablejsapi=1&origin=https://mh.unilearn.org.in&widget_referrer=https://mh.unilearn.org.in" 
-            title="Video Lesson" 
-            frameborder="0" 
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" 
-            allowfullscreen 
-            referrerpolicy="strict-origin-when-cross-origin"
-            style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; border-radius: 14px;"
-          ></iframe>
-        </div>
+      <div style="width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; background: #000;">
+        ${generateYouTubePlayerBlock(youtubeId, isDark, false).replace('class="video-wrapper"', 'class="video-wrapper fullscreen"')}
       </div>
     `;
   } else if (audioUrl) {
@@ -649,7 +564,7 @@ function generateMobileHtml(
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background-color: ${bg};
             color: ${text};
-            padding: 16px;
+            padding: 0;
             margin: 0;
             line-height: 1.7;
             font-size: 16px;
@@ -660,7 +575,7 @@ function generateMobileHtml(
             border: 1px solid ${border};
             border-radius: 14px;
             padding: 18px;
-            margin-bottom: 16px;
+            margin: 16px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.04);
           }
           .media-container {
@@ -1072,6 +987,7 @@ export default function CourseContentViewerScreen({ route, navigation }) {
   const [mediaType, setMediaType] = useState('none');
   const [mediaMime, setMediaMime] = useState('video/mp4');
   const [resolvedUrl, setResolvedUrl] = useState(null);
+  const [rawScormPlayerUrl, setRawScormPlayerUrl] = useState(null);
   const [moodleToken, setMoodleToken] = useState('');
   const [isScormPlaying, setIsScormPlaying] = useState(module?.modname === 'scorm');
   const [scormCompleted, setScormCompleted] = useState(!!module?.completed);
@@ -1168,23 +1084,37 @@ export default function CourseContentViewerScreen({ route, navigation }) {
         const token = client?.token || '';
         setMoodleToken(token);
 
-        // 0. Check YouTube video first
-        const directYtId = extractYouTubeId(
-          module?.externalurl ||
-          module?.url ||
-          module?.webUrl ||
-          module?.fileUrl ||
-          module?.intro ||
-          module?.description ||
-          module?.contentHtml
-        );
-        if (directYtId) {
-          setLoading(false);
-          return;
+        // 0. Check YouTube video first (only for non-SCORM modules, and never from description/contentHtml)
+        const isScormModule = module?.modname === 'scorm';
+        if (!isScormModule) {
+          const directYtId = extractYouTubeId([
+            module?.externalurl,
+            module?.url,
+            module?.webUrl,
+            module?.fileUrl,
+          ].filter(Boolean).join(' '));
+          if (directYtId) {
+            setLoading(false);
+            return;
+          }
         }
 
         // 0B. Certificate Module
         if (isCertModule) {
+          const baseUrl = (client?.baseUrl || 'https://mh.unilearn.org.in').replace(/\/+$/, '');
+          const certCmId = module?.id || module?.coursemodule || module?.instance;
+          const modType = module?.modname || 'customcert';
+          const rawCertUrl = module?.url || module?.webUrl || (certCmId ? `${baseUrl}/mod/${modType}/view.php?id=${certCmId}` : null);
+
+          if (rawCertUrl) {
+            try {
+              const authedUrl = await MobileAPI.getAuthenticatedUrl(rawCertUrl);
+              setResolvedUrl(authedUrl || rawCertUrl);
+            } catch (err) {
+              console.warn('[CourseContentViewer] Certificate authedUrl resolution error:', err);
+              setResolvedUrl(rawCertUrl);
+            }
+          }
           setLoading(false);
           return;
         }
@@ -1203,30 +1133,77 @@ export default function CourseContentViewerScreen({ route, navigation }) {
           }
         }
 
-        // 2. SCORM Module / Interactive Activity — Load content & check for embedded video
+        // 2. SCORM Module — launch Moodle's native interactive SCORM player with autologin
         if (module?.modname === 'scorm') {
           setResolvedUrl(null);
+          setRawScormPlayerUrl(null);
 
-          let scormIntro = '';
-          if (client && (courseId || module?.course)) {
+          if (client) {
             try {
+              const baseUrl = (client.baseUrl || 'https://mh.unilearn.org.in').replace(/\/+$/, '');
               const targetCourseId = courseId || module?.course || module?.courseId || 1;
-              const scormsRes = await client.getScormsByCourses([targetCourseId]);
-              const foundS = (scormsRes?.scorms || []).find(
-                s => s.coursemodule === module.id || s.id === module.instance
-              );
-              if (foundS?.intro) {
-                scormIntro = foundS.intro;
-              }
-            } catch (scormErr) {
-              console.log('getScormsByCourses note:', scormErr);
-            }
-          }
 
-          const rawDesc = module?.contentHtml || scormIntro || module?.description || module?.intro || '';
-          if (rawDesc) {
-            const fixed = fixMoodleHtmlContent(rawDesc, token, client?.baseUrl || 'https://mh.unilearn.org.in');
-            setFetchedHtml(fixed);
+              // Fetch SCORM metadata
+              let scorm = null;
+              try {
+                const scormsRes = await client.getScormsByCourses([targetCourseId]);
+                scorm = (scormsRes?.scorms || []).find(
+                  s => String(s.coursemodule) === String(module.id) || String(s.id) === String(module.instance)
+                ) || null;
+              } catch (e) {
+                console.warn('[SCORM] getScormsByCourses note:', e.message);
+              }
+
+              const scormId = scorm?.id || module?.instance || 2;
+              let scoId = null;
+              let currentOrg = null;
+              if (scormId) {
+                try {
+                  const scoRes = await client.getScormScoes(scormId);
+                  const scoes = scoRes?.scoes || scoRes || [];
+                  const firstSco = scoes.find(s => s.launch) || scoes[0];
+                  if (firstSco) {
+                    scoId = firstSco.id;
+                    currentOrg = firstSco.organization;
+                  }
+                } catch (e) {
+                  console.warn('[SCORM] getScormScoes note:', e.message);
+                }
+              }
+
+              // Construct the exact Moodle player URL
+              let rawPlayerUrl = '';
+              if (scormId) {
+                const orgParam = currentOrg ? `&currentorg=${encodeURIComponent(currentOrg)}` : '';
+                const scoParam = scoId ? `&scoid=${scoId}` : '';
+                rawPlayerUrl = `${baseUrl}/mod/scorm/player.php?a=${scormId}${orgParam}${scoParam}&display=popup&mode=normal`;
+              } else if (module?.id) {
+                rawPlayerUrl = `${baseUrl}/mod/scorm/player.php?id=${module.id}&display=popup&mode=normal`;
+              } else if (module?.url) {
+                rawPlayerUrl = module.url;
+              } else {
+                rawPlayerUrl = `${baseUrl}/mod/scorm/player.php?a=2&scoid=6&display=popup&mode=normal`;
+              }
+
+              setRawScormPlayerUrl(rawPlayerUrl);
+              console.log('[SCORM] Target player URL:', rawPlayerUrl);
+
+              // Authenticate through Moodle autologin gateway
+              let launchUrl = rawPlayerUrl;
+              try {
+                const authed = await MobileAPI.getAuthenticatedUrl(rawPlayerUrl);
+                if (authed) {
+                  launchUrl = authed;
+                  console.log('[SCORM] Launching via authenticated AutoLogin:', launchUrl);
+                }
+              } catch (authErr) {
+                console.warn('[SCORM] AutoLogin gateway note:', authErr.message);
+              }
+
+              setResolvedUrl(launchUrl);
+            } catch (scormErr) {
+              console.warn('[SCORM] Resolution failed:', scormErr.message);
+            }
           }
           setLoading(false);
           return;
@@ -1366,6 +1343,20 @@ export default function CourseContentViewerScreen({ route, navigation }) {
       const data = JSON.parse(event.nativeEvent.data);
       console.log('[SCORM In-App Event]:', data.type, data.lessonStatus, data.score);
 
+      if (data.type === 'OPEN_CERTIFICATE') {
+        const certUrlToOpen = data.url || resolvedUrl || targetUrl;
+        if (certUrlToOpen) {
+          (async () => {
+            try {
+              const authed = await MobileAPI.getAuthenticatedUrl(certUrlToOpen);
+              await WebBrowser.openBrowserAsync(authed || certUrlToOpen);
+            } catch (e) {
+              Linking.openURL(certUrlToOpen).catch(() => {});
+            }
+          })();
+        }
+      }
+
       if (data.type === 'OPEN_YOUTUBE') {
         const vid = data.videoId || currentYtId;
         if (vid) {
@@ -1414,27 +1405,25 @@ export default function CourseContentViewerScreen({ route, navigation }) {
     }
   };
 
-  const currentYtId = extractYouTubeId(
-    module?.externalurl ||
-    module?.url ||
-    module?.webUrl ||
-    module?.intro ||
-    module?.description ||
-    module?.contentHtml ||
-    fetchedHtml
-  );
+  const isScorm = module?.modname === 'scorm';
+  const currentYtId = !isScorm && extractYouTubeId([
+    module?.externalurl,
+    module?.url,
+    module?.webUrl,
+    fetchedHtml,
+  ].filter(Boolean).join(' '));
 
   const renderSource = () => {
-    // 0. YouTube Direct In-App Video Player (Priority #1 — exactly matches other video courses)
-    const ytId = extractYouTubeId(
-      module?.externalurl ||
-      module?.url ||
-      module?.webUrl ||
-      module?.intro ||
-      module?.description ||
-      module?.contentHtml ||
-      fetchedHtml
-    );
+    // 0. YouTube Direct In-App Player — only for non-SCORM modules,
+    //    and only check explicit URL fields (not description/contentHtml which
+    //    may contain supplementary YouTube links embedded in SCORM course text).
+    const isScorm = module?.modname === 'scorm';
+    const ytId = !isScorm && extractYouTubeId([
+      module?.externalurl,
+      module?.url,
+      module?.webUrl,
+      fetchedHtml,
+    ].filter(Boolean).join(' '));
     if (ytId) {
       return {
         html: generateYouTubePlayerHtml(ytId, isDark),
@@ -1442,8 +1431,12 @@ export default function CourseContentViewerScreen({ route, navigation }) {
       };
     }
 
-    // 1. Official Moodle Customcert (Matches Screenshot 1 & Screenshot 2)
+    // 1. Official Moodle Certificate (Loads authentic authenticated Moodle page)
     if (isCertModule) {
+      if (resolvedUrl) {
+        return { uri: resolvedUrl };
+      }
+
       const compTime = module?.completiondata?.timecompleted
         ? new Date(module.completiondata.timecompleted * 1000)
         : new Date();
@@ -1458,25 +1451,23 @@ export default function CourseContentViewerScreen({ route, navigation }) {
         hour12: true,
       });
 
-      const certificateId = module?.instance || module?.id || 2;
-      const userId = currentUser?.id || 14;
-      const realPdfDownloadUrl = `https://mh.unilearn.org.in/mod/customcert/mobile/pluginfile.php?certificateid=${certificateId}&userid=${userId}&token=${moodleToken}`;
-      const gDocsPdfViewerUrl = `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(realPdfDownloadUrl)}`;
+      const certCmId = module?.id || module?.coursemodule || module?.instance;
+      const modType = module?.modname || 'customcert';
+      const fallbackUrl = module?.url || module?.webUrl || (certCmId ? `https://mh.unilearn.org.in/mod/${modType}/view.php?id=${certCmId}` : null);
 
       return {
         html: generateOfficialMoodleCertificateHtml({
-          courseTitle: module?.name || 'COURSE CERTIFICATE',
-          description: module?.description || 'Certificate course on career guidance for teachers.',
+          courseTitle: module?.name || courseName || 'COURSE CERTIFICATE',
+          description: module?.description || 'Official course completion certificate.',
           awardedDateFormatted: awardedFormatted,
-          pdfViewerUrl: gDocsPdfViewerUrl,
-          pdfDownloadUrl: realPdfDownloadUrl,
+          pdfDownloadUrl: fallbackUrl || '',
           isDark,
         }),
       };
     }
 
-    // 2. Resolved Server Document / Embed URL (Google Docs PDF Viewer, etc.)
-    if (resolvedUrl && module?.modname !== 'scorm') {
+    // 2. Resolved Server Document / Embed URL (SCORM pluginfile, PDF viewer, etc.)
+    if (resolvedUrl) {
       return { uri: resolvedUrl };
     }
 
@@ -1491,6 +1482,7 @@ export default function CourseContentViewerScreen({ route, navigation }) {
           mediaType === 'image' ? directMediaUrl : null,
           mediaMime
         ),
+        baseUrl: 'https://mh.unilearn.org.in'
       };
     }
 
@@ -1506,6 +1498,7 @@ export default function CourseContentViewerScreen({ route, navigation }) {
           userName: currentUser?.fullname || 'Student',
           courseName,
         }),
+        baseUrl: 'https://mh.unilearn.org.in'
       };
     }
 
@@ -1601,6 +1594,25 @@ export default function CourseContentViewerScreen({ route, navigation }) {
               <Share2 size={19} color="#FFFFFF" />
             </TouchableOpacity>
           )}
+          {isCertModule && (
+            <TouchableOpacity
+              style={[styles.headerBtn, { marginLeft: 4, backgroundColor: '#059669' }]}
+              onPress={async () => {
+                try {
+                  const targetCertUrl = resolvedUrl || targetUrl || module?.url || module?.webUrl;
+                  if (targetCertUrl) {
+                    const authed = await MobileAPI.getAuthenticatedUrl(targetCertUrl);
+                    await WebBrowser.openBrowserAsync(authed || targetCertUrl);
+                  }
+                } catch (e) {
+                  console.warn('Error opening cert:', e);
+                }
+              }}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Award size={19} color="#FFFFFF" />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -1667,19 +1679,82 @@ export default function CourseContentViewerScreen({ route, navigation }) {
             allowUniversalAccessFromFileURLs={true}
             startInLoadingState={false}
             scalesPageToFit={false}
+            injectedJavaScript={`
+              (function() {
+                try {
+                  var isScorm = ${module?.modname === 'scorm' ? 'true' : 'false'};
+                  var isCert = ${isCertModule ? 'true' : 'false'};
+                  var isDark = ${isDark ? 'true' : 'false'};
+
+                  if (isScorm) {
+                    var iframe = document.getElementById('scorm_object') || document.getElementById('bofrm') || document.querySelector('iframe');
+                    if (iframe) {
+                      iframe.style.width = '100vw';
+                      iframe.style.height = '100vh';
+                      iframe.style.border = 'none';
+                    }
+                    var hideSelectors = ['#page-header', '#nav-drawer', '.navbar', '.header-main', '#page-navbar', '.activity-header', '.breadcrumb', 'header', 'footer'];
+                    hideSelectors.forEach(function(sel) {
+                      var el = document.querySelector(sel);
+                      if (el) el.style.display = 'none';
+                    });
+                    document.body.style.margin = '0';
+                    document.body.style.padding = '0';
+                    document.body.style.backgroundColor = '#000000';
+                  } else if (isCert) {
+                    var certHide = ['#nav-drawer', '.navbar', '.header-main', '#page-navbar', '.breadcrumb', 'footer', '#page-footer'];
+                    certHide.forEach(function(sel) {
+                      var el = document.querySelector(sel);
+                      if (el) el.style.display = 'none';
+                    });
+                    document.body.style.backgroundColor = isDark ? '#090D16' : '#F8FAFC';
+                    document.body.style.color = isDark ? '#F1F5F9' : '#0F172A';
+                    document.body.style.padding = '16px';
+                    var certBtns = document.querySelectorAll('.btn, button, input[type="submit"]');
+                    certBtns.forEach(function(btn) {
+                      btn.style.borderRadius = '8px';
+                      btn.style.padding = '12px 20px';
+                      btn.style.fontSize = '15px';
+                      btn.style.fontWeight = '700';
+                    });
+                  } else {
+                    var generalHide = ['#nav-drawer', '.navbar', '.header-main', '#page-navbar', '.breadcrumb', 'footer'];
+                    generalHide.forEach(function(sel) {
+                      var el = document.querySelector(sel);
+                      if (el) el.style.display = 'none';
+                    });
+                    if (isDark) {
+                      document.body.style.backgroundColor = '#090D16';
+                      document.body.style.color = '#F1F5F9';
+                    }
+                  }
+                } catch(e) {}
+              })();
+              true;
+            `}
             onMessage={handleScormBridgeMessage}
             onLoadStart={() => setLoading(true)}
             onLoadEnd={() => setLoading(false)}
             onShouldStartLoadWithRequest={(req) => {
               const reqUrl = req?.url || '';
-              if (
+              if (!reqUrl || reqUrl === 'about:blank') return true;
+
+              const isPdfOrDownload =
                 reqUrl.includes('downloadown=1') ||
+                reqUrl.includes('action=get') ||
                 reqUrl.toLowerCase().endsWith('.pdf') ||
-                (reqUrl.includes('/pluginfile.php/') && reqUrl.toLowerCase().includes('.pdf'))
-              ) {
-                const authedPdf = getMoodleMediaUrl(reqUrl, moodleToken);
-                const gDocsUrl = `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(authedPdf)}`;
-                setResolvedUrl(gDocsUrl);
+                (reqUrl.includes('/pluginfile.php/') && reqUrl.toLowerCase().includes('.pdf'));
+
+              if (isPdfOrDownload) {
+                (async () => {
+                  try {
+                    const authedDownloadUrl = await MobileAPI.getAuthenticatedUrl(reqUrl);
+                    await WebBrowser.openBrowserAsync(authedDownloadUrl || reqUrl);
+                  } catch (e) {
+                    console.warn('[CourseContentViewer] Error opening PDF in browser:', e);
+                    Linking.openURL(reqUrl).catch(() => {});
+                  }
+                })();
                 return false;
               }
               return true;
@@ -1699,20 +1774,24 @@ export default function CourseContentViewerScreen({ route, navigation }) {
             onNavigationStateChange={navState => {
               setCanGoBack(navState.canGoBack);
               setCanGoForward(navState.canGoForward);
+
+              // If Moodle autologin drops user on dashboard, redirect straight to player.php
+              if (
+                rawScormPlayerUrl &&
+                (navState.url.endsWith('/my/') || navState.url.endsWith('/my') || navState.url.includes('/my/courses.php') || navState.url.endsWith('/?redirect=0')) &&
+                !navState.url.includes('autologin') &&
+                !navState.url.includes('player.php')
+              ) {
+                console.log('[WebView] Redirecting stray dashboard navigation to player:', rawScormPlayerUrl);
+                webViewRef.current?.injectJavaScript(`window.location.replace('${rawScormPlayerUrl}'); true;`);
+              }
             }}
           />
         </View>
       )}
 
-      {/* Floating Completion Feedback when SCORM is Finished */}
-      {scormCompleted && isScormPlaying && (
-        <View style={styles.floatingCompletionToast}>
-          <CheckCircle size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
-          <Text style={styles.floatingCompletionText}>
-            {t('progress_saved', 'Progress Saved to Moodle')}
-          </Text>
-        </View>
-      )}
+
+
     </View>
   );
 }
